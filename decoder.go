@@ -21,7 +21,7 @@ func Unmarshal(data []byte, v interface{}) error {
 	return d.decodeValue(h, rv.Elem())
 }
 
-// decoder scans TOON v3.0 byte stream without allocations
+// decoder scans TOON v3.0 byte stream
 type decoder struct {
 	data []byte
 	pos  int
@@ -80,7 +80,6 @@ func (d *decoder) parseHeader() (*header, error) {
 
 		switch b {
 		case SizeStart:
-			// Found '[', name ends before it
 			if d.pos-1 > start {
 				h.name = string(d.data[start : d.pos-1])
 			}
@@ -91,7 +90,6 @@ func (d *decoder) parseHeader() (*header, error) {
 			h.size = size
 
 		case BlockStart:
-			// Found '{', name ends before it (if not already set)
 			if h.name == "" && d.pos-1 > start {
 				h.name = string(d.data[start : d.pos-1])
 			}
@@ -102,7 +100,6 @@ func (d *decoder) parseHeader() (*header, error) {
 			h.fields = fields
 
 		case HeaderEnd:
-			// Found ':', header ends
 			if h.name == "" && d.pos-1 > start {
 				h.name = string(d.data[start : d.pos-1])
 			}
@@ -129,8 +126,7 @@ func (d *decoder) parseSize() (int, error) {
 			return 0, ErrMalformedTOON
 		}
 	}
-	
-	// Parse the number
+
 	size := 0
 	for i := start; i < d.pos-1; i++ {
 		size = size*10 + int(d.data[i]-'0')
@@ -142,30 +138,28 @@ func (d *decoder) parseSize() (int, error) {
 func (d *decoder) parseFields() ([]string, error) {
 	var fields []string
 	start := d.pos
-	
+
 	for {
 		b, ok := d.next()
 		if !ok {
 			return nil, ErrMalformedTOON
 		}
-		
+
 		switch b {
 		case Separator:
-			// Field ends, save it
 			if d.pos-1 > start {
 				field := string(d.data[start : d.pos-1])
 				fields = append(fields, field)
 			}
 			start = d.pos
-			
+
 		case BlockEnd:
-			// Block ends, save last field if any
 			if d.pos-1 > start {
 				field := string(d.data[start : d.pos-1])
 				fields = append(fields, field)
 			}
 			return fields, nil
-			
+
 		default:
 			// Continue field name
 		}
@@ -175,7 +169,7 @@ func (d *decoder) parseFields() ([]string, error) {
 // decodeValue decodes TOON data into reflect.Value based on header
 func (d *decoder) decodeValue(h *header, v reflect.Value) error {
 	d.skipWhitespace()
-	
+
 	switch v.Kind() {
 	case reflect.Struct:
 		return d.decodeStruct(h, v)
@@ -188,13 +182,26 @@ func (d *decoder) decodeValue(h *header, v reflect.Value) error {
 
 // decodeStruct decodes CSV data into struct fields
 func (d *decoder) decodeStruct(h *header, v reflect.Value) error {
-	// Get field mapping from cache
-	fm := defaultCache.get(v.Type())
-	
+	info := getStructInfo(v.Type())
+	fieldMap := info.fields
+
+	// Build index mapping: header field index -> struct field index
+	fieldIdx := make([]int, len(h.fields))
+	for i, name := range h.fields {
+		idx := -1
+		for j, f := range fieldMap {
+			if f.name == name {
+				idx = j
+				break
+			}
+		}
+		fieldIdx[i] = idx
+	}
+
 	// Parse CSV values after header
-	for _, fieldName := range h.fields {
+	for _, fieldIndex := range fieldIdx {
 		d.skipWhitespace()
-		
+
 		// Read value until separator or end
 		start := d.pos
 		for {
@@ -204,54 +211,47 @@ func (d *decoder) decodeStruct(h *header, v reflect.Value) error {
 			}
 			d.pos++
 		}
-		
-		value := string(d.data[start:d.pos])
-		
+
+		value := d.data[start:d.pos]
+
 		// Skip separator
 		if b, ok := d.peek(); ok && b == Separator {
 			d.pos++
 		}
-		
-		// Find field index
-		idx, ok := fm[fieldName]
-		if !ok {
-			continue // Skip unknown fields
+
+		// Skip unknown fields
+		if fieldIndex < 0 || fieldIndex >= len(fieldMap) {
+			continue
 		}
-		
-		// Set field value
-		field := v.Field(idx)
-		if err := setField(field, value); err != nil {
+
+		// Set field value directly without string conversion
+		field := v.Field(fieldMap[fieldIndex].index)
+		if err := setFieldBytes(field, value); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
 // decodeSlice decodes multiple CSV rows into slice
 func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 	elemType := v.Type().Elem()
-	
-	// Parse each row
+
 	for {
 		d.skipWhitespace()
-		
-		// Check for end of data
+
 		if _, ok := d.peek(); !ok {
 			break
 		}
-		
-		// Create new element
+
 		elem := reflect.New(elemType).Elem()
-		
-		// Decode row into struct
 		if err := d.decodeStruct(h, elem); err != nil {
 			return err
 		}
-		
-		// Append to slice
+
 		v.Set(reflect.Append(v, elem))
-		
+
 		// Skip newline between rows
 		if b, ok := d.peek(); ok && (b == '\n' || b == '\r') {
 			d.pos++
@@ -262,41 +262,95 @@ func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
-// setField converts string value and sets it to reflect.Value
-func setField(v reflect.Value, s string) error {
+// setFieldBytes converts []byte value and sets it to reflect.Value
+// Avoids string allocation by parsing directly from bytes
+func setFieldBytes(v reflect.Value, b []byte) error {
 	switch v.Kind() {
 	case reflect.String:
-		v.SetString(s)
+		v.SetString(string(b))
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		n, err := strconv.ParseInt(s, 10, 64)
+		n, err := parseIntBytes(b)
 		if err != nil {
 			return ErrMalformedTOON
 		}
 		v.SetInt(n)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		n, err := strconv.ParseUint(s, 10, 64)
+		n, err := parseUintBytes(b)
 		if err != nil {
 			return ErrMalformedTOON
 		}
 		v.SetUint(n)
 	case reflect.Float32, reflect.Float64:
-		n, err := strconv.ParseFloat(s, 64)
+		n, err := strconv.ParseFloat(string(b), 64)
 		if err != nil {
 			return ErrMalformedTOON
 		}
 		v.SetFloat(n)
 	case reflect.Bool:
-		b, err := strconv.ParseBool(s)
+		// Fast path for + and - (TOON format)
+		if len(b) == 1 {
+			switch b[0] {
+			case '+':
+				v.SetBool(true)
+				return nil
+			case '-':
+				v.SetBool(false)
+				return nil
+			}
+		}
+		// Fallback to standard parsing
+		val, err := strconv.ParseBool(string(b))
 		if err != nil {
 			return ErrMalformedTOON
 		}
-		v.SetBool(b)
+		v.SetBool(val)
 	default:
 		return ErrInvalidTarget
 	}
 	return nil
+}
+
+// parseIntBytes parses int directly from []byte without allocation
+func parseIntBytes(b []byte) (int64, error) {
+	if len(b) == 0 {
+		return 0, ErrMalformedTOON
+	}
+	var neg bool
+	var n int64
+	i := 0
+	if b[0] == '-' {
+		neg = true
+		i = 1
+	}
+	for ; i < len(b); i++ {
+		c := b[i]
+		if c < '0' || c > '9' {
+			return 0, ErrMalformedTOON
+		}
+		n = n*10 + int64(c-'0')
+	}
+	if neg {
+		n = -n
+	}
+	return n, nil
+}
+
+// parseUintBytes parses uint directly from []byte without allocation
+func parseUintBytes(b []byte) (uint64, error) {
+	if len(b) == 0 {
+		return 0, ErrMalformedTOON
+	}
+	var n uint64
+	for i := 0; i < len(b); i++ {
+		c := b[i]
+		if c < '0' || c > '9' {
+			return 0, ErrMalformedTOON
+		}
+		n = n*10 + uint64(c-'0')
+	}
+	return n, nil
 }

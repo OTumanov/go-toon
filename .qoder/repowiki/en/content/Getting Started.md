@@ -3,13 +3,20 @@
 <cite>
 **Referenced Files in This Document**
 - [go.mod](file://go.mod)
-- [parser.go](file://parser.go)
-- [encoder.go](file://encoder.go)
-- [types.go](file://types.go)
-- [parser_test.go](file://parser_test.go)
-- [encoder_test.go](file://encoder_test.go)
-- [types_test.go](file://types_test.go)
+- [toon.go](file://toon.go)
+- [marshal.go](file://marshal.go)
+- [cmd/toongen/main.go](file://cmd/toongen/main.go)
+- [example/user.go](file://example/user.go)
+- [example/_toon.go](file://example/_toon.go)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added new section about the toongen code generation tool
+- Updated installation section to include toongen tool installation
+- Added practical examples of using toongen for automatic code generation
+- Enhanced serialization section with custom marshaler/unmarshaler patterns
+- Updated next steps to include code generation workflow
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -19,53 +26,67 @@
 5. [Basic Serialization and Deserialization](#basic-serialization-and-deserialization)
 6. [Working with Value Objects](#working-with-value-objects)
 7. [Converting Between TOON and JSON](#converting-between-toon-and-json)
-8. [Common Use Cases](#common-use-cases)
-9. [Error Handling Patterns](#error-handling-patterns)
-10. [Next Steps](#next-steps)
+8. [Code Generation with toongen](#code-generation-with-toongen)
+9. [Common Use Cases](#common-use-cases)
+10. [Error Handling Patterns](#error-handling-patterns)
+11. [Next Steps](#next-steps)
 
 ## Introduction
 Welcome to the go-toon library! This guide will help you quickly get started with TOON (Token-Oriented Object Notation), a compact binary format designed to save up to 40% LLM tokens compared to JSON. The library provides high-performance parsing and encoding capabilities for Go applications.
 
 TOON is a lightweight, human-readable format that uses a minimal set of tokens to represent structured data. It's particularly useful for AI/ML applications where token efficiency matters, but it's also suitable for general-purpose data interchange.
 
+**Updated** Added support for automatic code generation through the toongen tool, which simplifies adding TOON serialization to Go projects.
+
 ## Project Structure
-The go-toon library consists of four main components:
+The go-toon library consists of several key components, including the new toongen code generation tool:
 
 ```mermaid
 graph TB
 subgraph "go-toon Library"
-A[go.mod] --> B[parser.go]
-A --> C[encoder.go]
-A --> D[types.go]
-B --> E[Parse Functions]
-C --> F[Encode Functions]
-D --> G[Value Types]
-E --> H[Value Objects]
-F --> H
-G --> H
-H --> I[Type System]
-H --> J[Constructor Functions]
-H --> K[Accessor Methods]
+A[go.mod] --> B[toon.go]
+A --> C[marshal.go]
+A --> D[decoder.go]
+B --> E[Marshaler Interface]
+B --> F[Unmarshaler Interface]
+C --> G[Custom Marshalers]
+C --> H[Reflection-based Encoding]
+D --> I[Value System]
+E --> J[Manual Implementation]
+F --> K[Manual Implementation]
+G --> L[Automatic Generation]
+H --> L
+end
+subgraph "toongen Tool"
+M[cmd/toongen/main.go] --> N[AST Parser]
+N --> O[Template Generator]
+O --> P[Code Output]
 end
 ```
 
 **Diagram sources**
 - [go.mod](file://go.mod#L1-L4)
-- [parser.go](file://parser.go#L1-L411)
-- [encoder.go](file://encoder.go#L1-L192)
-- [types.go](file://types.go#L1-L209)
+- [toon.go](file://toon.go#L20-L28)
+- [marshal.go](file://marshal.go#L17-L38)
+- [cmd/toongen/main.go](file://cmd/toongen/main.go#L164-L192)
 
 **Section sources**
 - [go.mod](file://go.mod#L1-L4)
-- [parser.go](file://parser.go#L1-L411)
-- [encoder.go](file://encoder.go#L1-L192)
-- [types.go](file://types.go#L1-L209)
+- [toon.go](file://toon.go#L1-L29)
+- [marshal.go](file://marshal.go#L1-L184)
+- [cmd/toongen/main.go](file://cmd/toongen/main.go#L1-L366)
 
 ## Installation
 To use the go-toon library in your Go project, add it as a dependency using Go modules:
 
 ```bash
 go get github.com/OTumanov/go-toon
+```
+
+**Updated** Install the toongen code generation tool:
+
+```bash
+go install github.com/OTumanov/go-toon/cmd/toongen@latest
 ```
 
 The library requires Go 1.25.0 or later. You can check your Go version with:
@@ -75,6 +96,7 @@ go version
 
 **Section sources**
 - [go.mod](file://go.mod#L1-L4)
+- [cmd/toongen/main.go](file://cmd/toongen/main.go#L164-L173)
 
 ## Core Concepts
 Before diving into usage, let's understand the fundamental concepts of the TOON format and the go-toon library.
@@ -85,7 +107,7 @@ TOON uses a minimal token set to represent data types:
 - `+` represents true boolean values  
 - `-` represents false boolean values
 - Numbers are written as-is (integers and floats)
-- Strings are enclosed in double quotes with standard escape sequences
+- Strings are written as-is without quotes
 - Arrays use square brackets with space-separated values
 - Objects use curly braces with key-value pairs separated by spaces
 
@@ -127,90 +149,87 @@ Value --> Type : "has"
 ```
 
 **Diagram sources**
-- [types.go](file://types.go#L47-L209)
+- [toon.go](file://toon.go#L10-L18)
+
+### Custom Marshaler Interfaces
+The library provides interfaces for custom serialization:
+
+```mermaid
+classDiagram
+class Marshaler {
+<<interface>>
++MarshalTOON() []byte
+}
+class Unmarshaler {
+<<interface>>
++UnmarshalTOON(data []byte) error
+}
+class Struct {
++MarshalTOON() []byte
++UnmarshalTOON(data []byte) error
+}
+Marshaler <|-- Struct : "implements"
+Unmarshaler <|-- Struct : "implements"
+```
+
+**Diagram sources**
+- [toon.go](file://toon.go#L20-L28)
 
 **Section sources**
-- [types.go](file://types.go#L1-L209)
+- [toon.go](file://toon.go#L1-L29)
 
 ## Basic Serialization and Deserialization
 This section covers the fundamental operations for converting between TOON format and Go data structures.
 
-### Parsing TOON Data
-The primary parsing function reads TOON data from various sources and returns a `Value` object:
+### Reflection-based Encoding
+The library provides automatic encoding for structs using reflection:
 
 ```mermaid
 sequenceDiagram
 participant Client as "Your Code"
-participant Parser as "Parse()"
-participant Reader as "io.Reader"
-participant Value as "Value"
-Client->>Parser : Parse(reader)
-Parser->>Reader : Read next character
-Parser->>Parser : Determine token type
-alt Null token (~)
-Parser->>Value : Create NullValue()
-else Boolean token (+/-)
-Parser->>Value : Create BoolValue()
-else Number token
-Parser->>Value : Create NumberValue()
-else String token
-Parser->>Value : Create StringValue()
-else Array token
-Parser->>Value : Create ArrayValue()
-else Object token
-Parser->>Value : Create ObjectValue()
-end
-Parser-->>Client : Value, error
+participant Marshal as "Marshal()"
+participant Encoder as "encoder"
+participant Struct as "Go Struct"
+Client->>Marshal : Marshal(&struct)
+Marshal->>Encoder : Create encoder
+Encoder->>Struct : Inspect struct fields
+Encoder->>Encoder : Generate header
+Encoder->>Encoder : Encode field values
+Encoder-->>Client : []byte, error
 ```
 
 **Diagram sources**
-- [parser.go](file://parser.go#L18-L38)
-- [parser.go](file://parser.go#L40-L70)
+- [marshal.go](file://marshal.go#L17-L38)
+- [marshal.go](file://marshal.go#L67-L93)
 
-#### Basic Parsing Examples
-Here are common ways to parse TOON data:
-
-1. **From a string**: Use `ParseString()` for simple string inputs
-2. **From an io.Reader**: Use `Parse()` for streams, files, or network data
-3. **From bytes**: Wrap your byte slice with `bytes.NewReader()`
-
-**Section sources**
-- [parser.go](file://parser.go#L18-L38)
-- [parser.go](file://parser.go#L40-L70)
-
-### Encoding Values Back to TOON
-The encoding process converts `Value` objects back to TOON format:
+### Manual Implementation Pattern
+For optimal performance, implement custom marshalers:
 
 ```mermaid
 flowchart TD
-Start([Start Encoding]) --> CheckType{"Value Type?"}
-CheckType --> |Null| WriteNull["Write '~'"]
-CheckType --> |Boolean| WriteBool["Write '+' or '-'"]
-CheckType --> |Number| WriteNum["Write number format"]
-CheckType --> |String| WriteStr["Write quoted string"]
-CheckType --> |Array| WriteArr["Write '[' + items + ']'"]
-CheckType --> |Object| WriteObj["Write '{' + key-value pairs + '}'"]
-WriteNull --> End([Done])
-WriteBool --> End
-WriteNum --> End
-WriteStr --> End
-WriteArr --> End
-WriteObj --> End
+Start([Implement Interfaces]) --> CheckType{"Field Type?"}
+CheckType --> |String| WriteString["Append string value"]
+CheckType --> |Int| WriteInt["strconv.AppendInt()"]
+CheckType --> |Float| WriteFloat["strconv.AppendFloat()"]
+CheckType --> |Bool| WriteBool["Append '+' or '-'"]
+CheckType --> |Slice| WriteSlice["Handle nested arrays"]
+WriteString --> Header["Add header with field names"]
+WriteInt --> Header
+WriteFloat --> Header
+WriteBool --> Header
+WriteSlice --> Header
+Header --> End([Complete TOON])
 ```
 
 **Diagram sources**
-- [encoder.go](file://encoder.go#L31-L51)
-- [encoder.go](file://encoder.go#L96-L113)
-- [encoder.go](file://encoder.go#L115-L163)
-
-#### Basic Encoding Examples
-1. **To a writer**: Use `Encode(writer, value)` for streaming output
-2. **To a string**: Use `EncodeToString(value)` for string output
-3. **To bytes**: Use `EncodeToString()` then convert to bytes if needed
+- [marshal.go](file://marshal.go#L139-L183)
+- [toon.go](file://toon.go#L20-L28)
 
 **Section sources**
-- [encoder.go](file://encoder.go#L15-L29)
-- [encoder.go](file://encoder.go#L31-L51)
+- [marshal.go](file://marshal.go#L17-L38)
+- [marshal.go](file://marshal.go#L67-L93)
+- [marshal.go](file://marshal.go#L139-L183)
+- [toon.go](file://toon.go#L20-L28)
 
 ## Working with Value Objects
 Once you have parsed TOON data into `Value` objects, you can manipulate them using the provided methods.
@@ -244,8 +263,7 @@ Value --> ConstructorFunctions : "created by"
 ```
 
 **Diagram sources**
-- [types.go](file://types.go#L61-L176)
-- [types.go](file://types.go#L178-L209)
+- [toon.go](file://toon.go#L10-L18)
 
 ### Safe Value Access
 The `Value` type provides safe accessor methods that return appropriate defaults for non-matching types:
@@ -255,7 +273,7 @@ The `Value` type provides safe accessor methods that return appropriate defaults
 - **Len()**: Returns the length for arrays/objects, or 0 for primitives
 
 **Section sources**
-- [types.go](file://types.go#L141-L176)
+- [toon.go](file://toon.go#L10-L18)
 
 ## Converting Between TOON and JSON
 The go-toon library makes it easy to work with both TOON and JSON formats, allowing you to leverage existing JSON tooling while benefiting from TOON's efficiency.
@@ -263,10 +281,10 @@ The go-toon library makes it easy to work with both TOON and JSON formats, allow
 ### JSON to TOON Conversion
 1. Parse JSON data using your preferred JSON library
 2. Convert to `Value` objects using the constructor functions
-3. Encode to TOON format using `EncodeToString()`
+3. Encode to TOON format using `Marshal()` or `MarshalToString()`
 
 ### TOON to JSON Conversion  
-1. Parse TOON data using `ParseString()`
+1. Parse TOON data using `ParseString()` or `Parse()`
 2. Convert to JSON using your preferred JSON library
 3. Serialize to JSON format
 
@@ -278,7 +296,7 @@ sequenceDiagram
 participant JSON as "JSON Data"
 participant Parser as "ParseString()"
 participant Value as "Value Object"
-participant Encoder as "EncodeToString()"
+participant Encoder as "Marshal()"
 participant TOON as "TOON Data"
 JSON->>Parser : Parse JSON
 Parser->>Value : Create Value
@@ -288,11 +306,85 @@ TOON->>Parser : Parse TOON
 Parser->>Value : Verify Value
 ```
 
-**Diagram sources**
-- [encoder_test.go](file://encoder_test.go#L322-L375)
+**Section sources**
+- [marshal.go](file://marshal.go#L17-L38)
+
+## Code Generation with toongen
+**New Section** The toongen tool automates the creation of TOON serialization code for your structs, eliminating boilerplate and improving performance.
+
+### Installation and Setup
+Install the toongen tool globally:
+
+```bash
+go install github.com/OTumanov/go-toon/cmd/toongen@latest
+```
+
+Verify installation:
+```bash
+toongen -h
+```
+
+### Adding TOON Support to Structs
+Add a special comment to structs you want to generate TOON code for:
+
+```go
+//toon:generate
+type User struct {
+    ID   int
+    Name string
+    Age  int
+}
+
+//toon:generate
+type Product struct {
+    SKU   string
+    Price float64
+}
+```
+
+### Automatic Code Generation
+Run the generator in your package directory:
+
+```bash
+toongen -i .
+```
+
+This creates `_toon.go` with generated marshaling code. You can also specify a custom output file:
+
+```bash
+toongen -i . -o custom_toon.go
+```
+
+### Generated Code Features
+The generated code includes:
+- **MarshalTOON()**: Efficient TOON encoding for your struct
+- **UnmarshalTOON()**: Fast TOON decoding back to your struct
+- **Pre-allocated buffers**: Optimized memory allocation
+- **Type-specific parsing**: Proper handling of different field types
+
+### Tag Support
+Use struct tags to customize field names:
+
+```go
+//toon:generate
+type User struct {
+    ID   int `toon:"id"`
+    Name string `toon:"full_name"`
+    Age  int `toon:"-"` // Excludes field from TOON
+}
+```
+
+### Performance Benefits
+Generated code offers:
+- **Zero-allocation encoding**: Uses pre-allocated buffers
+- **Direct field access**: No reflection overhead
+- **Optimized parsing**: Type-specific parsers for each field
+- **Minimal memory footprint**: Efficient buffer management
 
 **Section sources**
-- [encoder_test.go](file://encoder_test.go#L322-L375)
+- [cmd/toongen/main.go](file://cmd/toongen/main.go#L1-L366)
+- [example/user.go](file://example/user.go#L1-L15)
+- [example/_toon.go](file://example/_toon.go#L1-L168)
 
 ## Common Use Cases
 This section demonstrates practical scenarios you'll encounter when working with the go-toon library.
@@ -313,10 +405,6 @@ G --> H
 H --> I["Encode Back to TOON"]
 ```
 
-**Diagram sources**
-- [types.go](file://types.go#L141-L176)
-- [parser.go](file://parser.go#L255-L283)
-
 ### Nested Data Structures
 Handling complex nested objects and arrays:
 
@@ -329,12 +417,35 @@ Handling complex nested objects and arrays:
 For large datasets or real-time processing:
 
 1. **Streaming Parse**: Use `Parse(io.Reader)` with buffered readers
-2. **Streaming Encode**: Use `Encode(io.Writer)` for continuous output
+2. **Streaming Encode**: Use `MarshalTo()` for continuous output
 3. **Memory Efficiency**: Process data in chunks rather than loading entire datasets
 
+### Custom Marshaler Implementation
+For maximum performance, implement custom marshalers:
+
+```go
+type User struct {
+    ID   int
+    Name string
+    Age  int
+}
+
+func (u User) MarshalTOON() ([]byte, error) {
+    buf := make([]byte, 0, 256)
+    buf = append(buf, "user{"...)
+    buf = append(buf, "id,name,age}:"...)
+    buf = strconv.AppendInt(buf, int64(u.ID), 10)
+    buf = append(buf, ',')
+    buf = append(buf, u.Name...)
+    buf = append(buf, ',')
+    buf = strconv.AppendInt(buf, int64(u.Age), 10)
+    return buf, nil
+}
+```
+
 **Section sources**
-- [parser.go](file://parser.go#L18-L38)
-- [encoder.go](file://encoder.go#L15-L29)
+- [toon.go](file://toon.go#L20-L28)
+- [marshal.go](file://marshal.go#L17-L38)
 
 ## Error Handling Patterns
 The go-toon library follows Go's standard error handling patterns. Here are common approaches:
@@ -377,8 +488,7 @@ The `Value` type uses panics for type conversion errors rather than returning er
 - Wrap conversions in defensive checks
 
 **Section sources**
-- [parser.go](file://parser.go#L19-L33)
-- [types.go](file://types.go#L96-L139)
+- [toon.go](file://toon.go#L5-L8)
 
 ## Next Steps
 You've learned the fundamentals of the go-toon library. Here are suggestions for continued learning:
@@ -388,6 +498,7 @@ You've learned the fundamentals of the go-toon library. Here are suggestions for
 - **Performance Optimization**: Benchmark different parsing and encoding strategies
 - **Integration Patterns**: Explore integration with popular JSON libraries
 - **Memory Management**: Understand memory usage patterns for large datasets
+- **Code Generation Workflow**: Integrate toongen into your development pipeline
 
 ### Best Practices
 - Always validate input data before parsing
@@ -395,11 +506,15 @@ You've learned the fundamentals of the go-toon library. Here are suggestions for
 - Leverage the round-trip testing patterns shown in the examples
 - Consider streaming for large datasets
 - Handle errors gracefully in production code
+- Use toongen for frequently serialized structs to improve performance
 
 ### Further Exploration
 - Review the comprehensive test suite for additional usage patterns
 - Experiment with different data structures and edge cases
 - Compare performance characteristics with JSON for your specific use case
 - Explore integration with existing Go ecosystem tools
+- Consider using toongen in CI/CD pipelines for automated code generation
 
 The go-toon library provides a solid foundation for efficient data interchange in Go applications. Start with the basics covered here, then gradually explore more advanced features as your needs grow.
+
+**Updated** The addition of the toongen code generation tool significantly enhances the library's usability by providing automatic, high-performance serialization code generation for your structs.

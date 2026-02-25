@@ -2,66 +2,90 @@ package toon
 
 import (
 	"reflect"
+	"strings"
 	"sync"
 )
 
-// structCache maps struct types to their field indices for fast lookup
-type structCache struct {
-	mu    sync.RWMutex
-	cache map[reflect.Type]fieldMap
+// structInfo holds cached metadata for a struct type
+type structInfo struct {
+	name   string
+	fields []fieldInfo
 }
 
-// fieldMap maps field names to their struct index
-type fieldMap map[string]int
-
-var defaultCache = &structCache{
-	cache: make(map[reflect.Type]fieldMap),
+// fieldInfo holds metadata for a single field
+type fieldInfo struct {
+	name  string
+	index int
 }
 
-// get returns cached field map for a struct type
-func (c *structCache) get(t reflect.Type) fieldMap {
-	c.mu.RLock()
-	fm, ok := c.cache[t]
-	c.mu.RUnlock()
-	
-	if ok {
-		return fm
+// cache uses sync.Map for better concurrent performance
+var cache sync.Map // map[reflect.Type]*structInfo
+
+// getStructInfo returns cached struct info for a type
+func getStructInfo(t reflect.Type) *structInfo {
+	if info, ok := cache.Load(t); ok {
+		return info.(*structInfo)
 	}
+
+	// Build info
+	info := buildStructInfo(t)
 	
-	// Compute and cache
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	
-	// Double-check after acquiring write lock
-	if fm, ok := c.cache[t]; ok {
-		return fm
+	// Store in cache (if another goroutine stored first, use that)
+	if actual, loaded := cache.LoadOrStore(t, info); loaded {
+		return actual.(*structInfo)
 	}
-	
-	fm = buildFieldMap(t)
-	c.cache[t] = fm
-	return fm
+	return info
 }
 
-// buildFieldMap creates a mapping from field name to struct index
-func buildFieldMap(t reflect.Type) fieldMap {
-	fm := make(fieldMap)
-	
+// buildStructInfo creates structInfo from reflect.Type
+func buildStructInfo(t reflect.Type) *structInfo {
+	info := &structInfo{
+		name:   strings.ToLower(t.Name()),
+		fields: make([]fieldInfo, 0, t.NumField()),
+	}
+
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		
+
 		// Skip unexported fields
 		if !field.IsExported() {
 			continue
 		}
-		
-		// Use "toon" tag if present, otherwise use field name
+
+		// Parse tag
 		name := field.Name
-		if tag := field.Tag.Get("toon"); tag != "" {
-			name = tag
+		tag := field.Tag.Get("toon")
+		if tag == "-" {
+			continue // Skip field
 		}
-		
-		fm[name] = i
+		if tag != "" {
+			name = tag
+		} else {
+			name = strings.ToLower(field.Name)
+		}
+
+		info.fields = append(info.fields, fieldInfo{
+			name:  name,
+			index: i,
+		})
 	}
-	
+
+	return info
+}
+
+// Legacy support for decoder.go
+func (c *structCache) get(t reflect.Type) fieldMap {
+	info := getStructInfo(t)
+	fm := make(fieldMap)
+	for _, f := range info.fields {
+		fm[f.name] = f.index
+	}
 	return fm
 }
+
+// structCache is kept for backward compatibility with decoder
+type structCache struct{}
+
+var defaultCache = &structCache{}
+
+type fieldMap map[string]int

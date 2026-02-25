@@ -12,48 +12,74 @@ type TestUser struct {
 	age   int    // unexported
 }
 
-func TestBuildFieldMap(t *testing.T) {
+func TestGetStructInfo(t *testing.T) {
 	typ := reflect.TypeOf(TestUser{})
-	fm := buildFieldMap(typ)
-	
+	info := getStructInfo(typ)
+
 	// Should have exported fields only
-	if len(fm) != 3 {
-		t.Errorf("expected 3 fields, got %d", len(fm))
+	if len(info.fields) != 3 {
+		t.Errorf("expected 3 fields, got %d", len(info.fields))
 	}
-	
-	// Check standard fields
-	if idx, ok := fm["ID"]; !ok || idx != 0 {
-		t.Errorf("ID: expected index 0, got %d", idx)
+
+	// Check struct name (lowercase)
+	if info.name != "testuser" {
+		t.Errorf("expected name 'testuser', got %q", info.name)
 	}
-	
-	if idx, ok := fm["Name"]; !ok || idx != 1 {
-		t.Errorf("Name: expected index 1, got %d", idx)
+
+	// Build map for easier checking
+	fieldMap := make(map[string]int)
+	for _, f := range info.fields {
+		fieldMap[f.name] = f.index
 	}
-	
+
+	// Check lowercase fields
+	if idx, ok := fieldMap["id"]; !ok || idx != 0 {
+		t.Errorf("id: expected index 0, got %d", idx)
+	}
+
+	if idx, ok := fieldMap["name"]; !ok || idx != 1 {
+		t.Errorf("name: expected index 1, got %d", idx)
+	}
+
 	// Check tagged field
-	if idx, ok := fm["email"]; !ok || idx != 2 {
+	if idx, ok := fieldMap["email"]; !ok || idx != 2 {
 		t.Errorf("email: expected index 2, got %d", idx)
 	}
-	
+
 	// Unexported field should not be present
-	if _, ok := fm["age"]; ok {
+	if _, ok := fieldMap["age"]; ok {
 		t.Error("age should not be in field map (unexported)")
 	}
 }
 
-func TestCacheGet(t *testing.T) {
+func TestCacheConcurrency(t *testing.T) {
 	typ := reflect.TypeOf(TestUser{})
-	
+
 	// First call - should build
-	fm1 := defaultCache.get(typ)
-	if fm1 == nil {
+	info1 := getStructInfo(typ)
+	if info1 == nil {
+		t.Fatal("expected struct info, got nil")
+	}
+
+	// Second call - should return cached
+	info2 := getStructInfo(typ)
+
+	// Should be same pointer
+	if info1 != info2 {
+		t.Error("expected same cached instance")
+	}
+}
+
+func TestDefaultCacheCompatibility(t *testing.T) {
+	typ := reflect.TypeOf(TestUser{})
+
+	// Test legacy API still works
+	fm := defaultCache.get(typ)
+	if fm == nil {
 		t.Fatal("expected field map, got nil")
 	}
-	
-	// Second call - should return cached
-	fm2 := defaultCache.get(typ)
-	// Compare by checking they have same content (maps can't be compared directly)
-	if len(fm1) != len(fm2) {
-		t.Error("expected same cached instance size")
+
+	if len(fm) != 3 {
+		t.Errorf("expected 3 fields, got %d", len(fm))
 	}
 }

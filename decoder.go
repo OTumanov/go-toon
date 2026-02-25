@@ -181,8 +181,9 @@ func (d *decoder) decodeValue(h *header, v reflect.Value) error {
 func (d *decoder) decodeStruct(h *header, v reflect.Value) error {
 	info := getStructInfo(v.Type())
 
-	// Build field index mapping: header field -> struct field
-	fieldIdx := make([]int, len(h.fields))
+	// Use stack-allocated array for field indices (avoids heap allocation)
+	var fieldIdxArr [64]int
+	fieldIdx := fieldIdxArr[:len(h.fields)]
 	for i, name := range h.fields {
 		fieldIdx[i] = info.findFieldIndex(name)
 	}
@@ -227,6 +228,13 @@ func (d *decoder) decodeStruct(h *header, v reflect.Value) error {
 func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 	elemType := v.Type().Elem()
 
+	// Pre-allocate slice if size is known from header
+	var newSlice reflect.Value
+	if h.size > 0 {
+		newSlice = reflect.MakeSlice(v.Type(), h.size, h.size)
+	}
+
+	rowIdx := 0
 	for {
 		d.skipWhitespace()
 
@@ -234,12 +242,22 @@ func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 			break
 		}
 
-		elem := reflect.New(elemType).Elem()
+		// Get or create element
+		var elem reflect.Value
+		if h.size > 0 && rowIdx < h.size {
+			elem = newSlice.Index(rowIdx)
+			rowIdx++
+		} else {
+			elem = reflect.New(elemType).Elem()
+		}
+
 		if err := d.decodeStruct(h, elem); err != nil {
 			return err
 		}
 
-		v.Set(reflect.Append(v, elem))
+		if h.size <= 0 {
+			newSlice = reflect.Append(newSlice, elem)
+		}
 
 		// Skip newline between rows
 		if b, ok := d.peek(); ok && (b == '\n' || b == '\r') {
@@ -252,6 +270,7 @@ func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 		}
 	}
 
+	v.Set(newSlice)
 	return nil
 }
 

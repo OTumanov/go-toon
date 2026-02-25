@@ -137,6 +137,18 @@ func (e *encoder) encodeSlice(v reflect.Value) error {
 }
 
 func (e *encoder) encodeValue(v reflect.Value) error {
+	// Check for custom Marshaler interface
+	if v.CanInterface() {
+		if m, ok := v.Interface().(Marshaler); ok {
+			data, err := m.MarshalTOON()
+			if err != nil {
+				return err
+			}
+			e.buf = append(e.buf, data...)
+			return nil
+		}
+	}
+
 	switch v.Kind() {
 	case reflect.String:
 		e.buf = append(e.buf, v.String()...)

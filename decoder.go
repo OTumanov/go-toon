@@ -276,6 +276,13 @@ func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 
 // setFieldBytes converts []byte value and sets it to reflect.Value
 func setFieldBytes(v reflect.Value, b []byte) error {
+	// Check for custom Unmarshaler interface
+	if v.CanAddr() {
+		if m, ok := v.Addr().Interface().(Unmarshaler); ok {
+			return m.UnmarshalTOON(b)
+		}
+	}
+
 	switch v.Kind() {
 	case reflect.String:
 		v.SetString(string(b))

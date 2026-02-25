@@ -16,3 +16,13 @@ const (
 	HeaderEnd  = ':'
 	Separator  = ','
 )
+
+// Marshaler is the interface implemented by types that can marshal themselves into TOON
+type Marshaler interface {
+	MarshalTOON() ([]byte, error)
+}
+
+// Unmarshaler is the interface implemented by types that can unmarshal themselves from TOON
+type Unmarshaler interface {
+	UnmarshalTOON(data []byte) error
+}

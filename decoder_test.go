@@ -1,0 +1,156 @@
+package toon
+
+import (
+	"reflect"
+	"testing"
+)
+
+func TestDecoderNext(t *testing.T) {
+	d := newDecoder([]byte("abc"))
+	
+	b, ok := d.next()
+	if !ok || b != 'a' {
+		t.Errorf("expected 'a', got %c", b)
+	}
+	
+	b, ok = d.peek()
+	if !ok || b != 'b' {
+		t.Errorf("expected 'b' peek, got %c", b)
+	}
+	
+	// pos should still be 1 after peek
+	if d.pos != 1 {
+		t.Errorf("expected pos=1 after peek, got %d", d.pos)
+	}
+}
+
+func TestParseHeader(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    *header
+		wantErr bool
+	}{
+		{
+			name:  "simple name",
+			input: "users:",
+			want:  &header{name: "users", size: -1},
+		},
+		{
+			name:  "with size",
+			input: "users[10]:",
+			want:  &header{name: "users", size: 10},
+		},
+		{
+			name:  "with fields",
+			input: "users{id,name,age}:",
+			want:  &header{name: "users", size: -1, fields: []string{"id", "name", "age"}},
+		},
+		{
+			name:  "full header",
+			input: "users[2]{id,name}:",
+			want:  &header{name: "users", size: 2, fields: []string{"id", "name"}},
+		},
+		{
+			name:    "missing colon",
+			input:   "users",
+			wantErr: true,
+		},
+		{
+			name:    "invalid size",
+			input:   "users[abc]:",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := newDecoder([]byte(tt.input))
+			got, err := d.parseHeader()
+			
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+			
+			if got.name != tt.want.name {
+				t.Errorf("name: got %q, want %q", got.name, tt.want.name)
+			}
+			if got.size != tt.want.size {
+				t.Errorf("size: got %d, want %d", got.size, tt.want.size)
+			}
+			if !reflect.DeepEqual(got.fields, tt.want.fields) {
+				t.Errorf("fields: got %v, want %v", got.fields, tt.want.fields)
+			}
+		})
+	}
+}
+
+func TestUnmarshalStruct(t *testing.T) {
+	type User struct {
+		ID   int
+		Name string
+	}
+
+	data := []byte("user{ID,Name}:42,John")
+	
+	var u User
+	err := Unmarshal(data, &u)
+	if err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	
+	if u.ID != 42 {
+		t.Errorf("ID: expected 42, got %d", u.ID)
+	}
+	if u.Name != "John" {
+		t.Errorf("Name: expected John, got %s", u.Name)
+	}
+}
+
+func TestUnmarshalSlice(t *testing.T) {
+	type User struct {
+		ID   int
+		Name string
+	}
+
+	data := []byte("users[2]{ID,Name}:42,John\n43,Jane")
+	
+	var users []User
+	err := Unmarshal(data, &users)
+	if err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(users))
+	}
+	
+	if users[0].ID != 42 || users[0].Name != "John" {
+		t.Errorf("user[0]: expected {42 John}, got {%d %s}", users[0].ID, users[0].Name)
+	}
+	
+	if users[1].ID != 43 || users[1].Name != "Jane" {
+		t.Errorf("user[1]: expected {43 Jane}, got {%d %s}", users[1].ID, users[1].Name)
+	}
+}
+
+func TestUnmarshalInvalidTarget(t *testing.T) {
+	err := Unmarshal([]byte("test:"), "not a pointer")
+	if err != ErrInvalidTarget {
+		t.Errorf("expected ErrInvalidTarget, got %v", err)
+	}
+	
+	var i int
+	err = Unmarshal([]byte("test:"), &i)
+	if err != ErrInvalidTarget {
+		t.Errorf("expected ErrInvalidTarget for non-struct/slice, got %v", err)
+	}
+}

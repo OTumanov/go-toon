@@ -200,7 +200,7 @@ The encoding process transforms Values into their binary representation through 
 
 ```mermaid
 flowchart TD
-Start([Start Encoding]) --> CheckType{"Value Type?"}
+Start["Start Encoding"] --> CheckType{"Value Type?"}
 CheckType --> |Null| WriteNull["Write '~'"]
 CheckType --> |Boolean| CheckBool{"Boolean Value?"}
 CheckType --> |Number| EncodeNumber["Format Number"]
@@ -211,7 +211,7 @@ CheckBool --> |True| WritePlus["Write '+'"]
 CheckBool --> |False| WriteMinus["Write '-'"]
 EncodeNumber --> WriteNumber["Write Formatted Number"]
 EncodeString --> ProcessEscapes["Process Escapes & Quotes"]
-ProcessEscapes --> WriteString["Write '\"' + Content + '\"'"]
+ProcessEscapes --> WriteString["Write \"'\" + Content + \"'\""]
 EncodeArray --> WriteOpenBracket["Write '['"]
 WriteOpenBracket --> LoopItems{"More Items?"}
 LoopItems --> |Yes| EncodeItem["Encode Item"] --> AddSeparator["Write Space"] --> LoopItems
@@ -222,7 +222,7 @@ CheckKeys --> |Yes| CheckIdentifier{"Is Identifier?"}
 CheckIdentifier --> |Yes| WriteKey["Write Key"]
 CheckIdentifier --> |No| EncodeKeyString["Encode Key String"]
 CheckKeys --> |No| WriteCloseBrace["Write '}'"]
-WriteNull --> End([End])
+WriteNull --> End["End"]
 WritePlus --> End
 WriteMinus --> End
 WriteNumber --> End
@@ -244,39 +244,39 @@ The parsing engine reverses the encoding process with sophisticated lookahead an
 
 ```mermaid
 flowchart TD
-Start([Start Parsing]) --> SkipWS["Skip Whitespace"]
-SkipWS --> PeekChar{"Next Character"}
-PeekChar --> |'~'| ParseNull["Parse Null"]
-PeekChar --> |'+'| ParseBoolean["Parse Boolean"]
-PeekChar --> |'-'| ParseBoolean
+Start["Start Parsing"] --> SkipWS["Skip Whitespace"]
+SkipWS --> PeekChar["Next Character"]
+PeekChar --> |"~"| ParseNull["Parse Null"]
+PeekChar --> |"+"| ParseBoolean["Parse Boolean"]
+PeekChar --> |"-"| ParseBoolean
 PeekChar --> |'"'| ParseString["Parse String"]
-PeekChar --> |'['| ParseArray["Parse Array"]
-PeekChar --> |'{'| ParseObject["Parse Object"]
-PeekChar --> |Digit| ParseNumber["Parse Number"]
-PeekChar --> |'. '| ParseNumber
-PeekChar --> |EOF| ErrorEOF["Return EOF Error"]
-PeekChar --> |Other| ErrorInvalid["Return Invalid Token Error"]
-ParseNull --> ValidateNull{"Is '~'?"}
-ValidateNull --> |Yes| CreateNull["Create Null Value"]
-ValidateNull --> |No| ErrorNull["Return Parse Error"]
+PeekChar --> |"["| ParseArray["Parse Array"]
+PeekChar --> |"{"| ParseObject["Parse Object"]
+PeekChar --> |"Digit"| ParseNumber["Parse Number"]
+PeekChar --> |"."| ParseNumber
+PeekChar --> |"EOF"| ErrorEOF["Return EOF Error"]
+PeekChar --> |"Other"| ErrorInvalid["Return Invalid Token Error"]
+ParseNull --> ValidateNull["Is '~'?"]
+ValidateNull --> |"Yes"| CreateNull["Create Null Value"]
+ValidateNull --> |"No"| ErrorNull["Return Parse Error"]
 ParseBoolean --> ReadSign["Read Sign"]
 ReadSign --> CreateBool["Create Boolean Value"]
 ParseString --> ReadQuote["Read '\"'"]
-ReadQuote --> LoopChars{"More Characters?"}
-LoopChars --> |Escape| ProcessEscape["Process Escape Sequence"]
-LoopChars --> |Quote| CreateString["Create String Value"]
-LoopChars --> |Other| AppendChar["Append Character"]
+ReadQuote --> LoopChars["More Characters?"]
+LoopChars --> |"Escape"| ProcessEscape["Process Escape Sequence"]
+LoopChars --> |"Quote"| CreateString["Create String Value"]
+LoopChars --> |"Other"| AppendChar["Append Character"]
 ProcessEscape --> LoopChars
 AppendChar --> LoopChars
 ParseArray --> ReadOpen["Read '['"]
-ReadOpen --> LoopArray{"More Elements?"}
-LoopArray --> |']'| CreateArray["Create Array Value"]
-LoopArray --> |Other| ParseElement["Parse Element"] --> LoopArray
+ReadOpen --> LoopArray["More Elements?"]
+LoopArray --> |"]"| CreateArray["Create Array Value"]
+LoopArray --> |"Other"| ParseElement["Parse Element"] --> LoopArray
 ParseObject --> ReadOpenBrace["Read '{'"]
-ReadOpenBrace --> LoopObject{"More Pairs?"}
-LoopObject --> |'}'| CreateObject["Create Object Value"]
-LoopObject --> |Other| ParseKey["Parse Key"] --> ParseValue["Parse Value"] --> LoopObject
-CreateNull --> End([End])
+ReadOpenBrace --> LoopObject["More Pairs?"]
+LoopObject --> |"}"| CreateObject["Create Object Value"]
+LoopObject --> |"Other"| ParseKey["Parse Key"] --> ParseValue["Parse Value"] --> LoopObject
+CreateNull --> End["End"]
 CreateBool --> End
 CreateString --> End
 CreateArray --> End

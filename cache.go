@@ -8,14 +8,16 @@ import (
 
 // structInfo holds cached metadata for a struct type
 type structInfo struct {
-	name   string
-	fields []fieldInfo
+	name      string
+	nameBytes []byte
+	fields    []fieldInfo
 }
 
 // fieldInfo holds metadata for a single field
 type fieldInfo struct {
-	name  string
-	index int
+	name      string
+	nameBytes []byte // For fast []byte comparison
+	index     int
 }
 
 // cache uses sync.Map for better concurrent performance
@@ -27,10 +29,7 @@ func getStructInfo(t reflect.Type) *structInfo {
 		return info.(*structInfo)
 	}
 
-	// Build info
 	info := buildStructInfo(t)
-	
-	// Store in cache (if another goroutine stored first, use that)
 	if actual, loaded := cache.LoadOrStore(t, info); loaded {
 		return actual.(*structInfo)
 	}
@@ -39,24 +38,24 @@ func getStructInfo(t reflect.Type) *structInfo {
 
 // buildStructInfo creates structInfo from reflect.Type
 func buildStructInfo(t reflect.Type) *structInfo {
+	name := strings.ToLower(t.Name())
 	info := &structInfo{
-		name:   strings.ToLower(t.Name()),
-		fields: make([]fieldInfo, 0, t.NumField()),
+		name:      name,
+		nameBytes: []byte(name),
+		fields:    make([]fieldInfo, 0, t.NumField()),
 	}
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 
-		// Skip unexported fields
 		if !field.IsExported() {
 			continue
 		}
 
-		// Parse tag
 		name := field.Name
 		tag := field.Tag.Get("toon")
 		if tag == "-" {
-			continue // Skip field
+			continue
 		}
 		if tag != "" {
 			name = tag
@@ -65,12 +64,36 @@ func buildStructInfo(t reflect.Type) *structInfo {
 		}
 
 		info.fields = append(info.fields, fieldInfo{
-			name:  name,
-			index: i,
+			name:      name,
+			nameBytes: []byte(name),
+			index:     i,
 		})
 	}
 
 	return info
+}
+
+// findFieldIndex finds field index by []byte name (zero-copy lookup)
+func (info *structInfo) findFieldIndex(name []byte) int {
+	for _, f := range info.fields {
+		if bytesEqual(f.nameBytes, name) {
+			return f.index
+		}
+	}
+	return -1
+}
+
+// bytesEqual compares two byte slices (faster than bytes.Equal for small slices)
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Legacy support for decoder.go
@@ -83,9 +106,6 @@ func (c *structCache) get(t reflect.Type) fieldMap {
 	return fm
 }
 
-// structCache is kept for backward compatibility with decoder
 type structCache struct{}
-
 var defaultCache = &structCache{}
-
 type fieldMap map[string]int

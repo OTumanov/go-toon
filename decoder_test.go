@@ -1,7 +1,6 @@
 package toon
 
 import (
-	"reflect"
 	"testing"
 )
 
@@ -34,22 +33,22 @@ func TestParseHeader(t *testing.T) {
 		{
 			name:  "simple name",
 			input: "users:",
-			want:  &header{name: "users", size: -1},
+			want:  &header{name: []byte("users"), size: -1},
 		},
 		{
 			name:  "with size",
 			input: "users[10]:",
-			want:  &header{name: "users", size: 10},
+			want:  &header{name: []byte("users"), size: 10},
 		},
 		{
 			name:  "with fields",
 			input: "users{id,name,age}:",
-			want:  &header{name: "users", size: -1, fields: []string{"id", "name", "age"}},
+			want:  &header{name: []byte("users"), size: -1, fields: [][]byte{[]byte("id"), []byte("name"), []byte("age")}},
 		},
 		{
 			name:  "full header",
 			input: "users[2]{id,name}:",
-			want:  &header{name: "users", size: 2, fields: []string{"id", "name"}},
+			want:  &header{name: []byte("users"), size: 2, fields: [][]byte{[]byte("id"), []byte("name")}},
 		},
 		{
 			name:    "missing colon",
@@ -80,14 +79,19 @@ func TestParseHeader(t *testing.T) {
 				return
 			}
 			
-			if got.name != tt.want.name {
+			if !bytesEqual(got.name, tt.want.name) {
 				t.Errorf("name: got %q, want %q", got.name, tt.want.name)
 			}
 			if got.size != tt.want.size {
 				t.Errorf("size: got %d, want %d", got.size, tt.want.size)
 			}
-			if !reflect.DeepEqual(got.fields, tt.want.fields) {
-				t.Errorf("fields: got %v, want %v", got.fields, tt.want.fields)
+			if len(got.fields) != len(tt.want.fields) {
+				t.Errorf("fields len: got %d, want %d", len(got.fields), len(tt.want.fields))
+			}
+			for i := range got.fields {
+				if !bytesEqual(got.fields[i], tt.want.fields[i]) {
+					t.Errorf("field[%d]: got %q, want %q", i, got.fields[i], tt.want.fields[i])
+				}
 			}
 		})
 	}

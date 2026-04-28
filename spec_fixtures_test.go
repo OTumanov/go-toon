@@ -429,6 +429,36 @@ var trackedSubsetCases = []subsetCase{
 		mode:        "supported",
 		target:      "float",
 	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
+		testName:    "parses root-level array of uniform objects in tabular format",
+		mode:        "supported",
+		target:      "slice-struct-id",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
+		testName:    "parses empty root-level array",
+		mode:        "supported",
+		target:      "slice-struct-id",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses string arrays inline",
+		mode:        "known_gap",
+		target:      "struct-tags-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses number arrays inline",
+		mode:        "known_gap",
+		target:      "struct-tags-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
+		testName:    "parses tabular arrays of uniform objects",
+		mode:        "known_gap",
+		target:      "struct-items-array",
+	},
 }
 
 // TestSpecFixturesAvailability ensures CI can consume official TOON fixtures.
@@ -572,6 +602,14 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected empty document to decode into empty object, got error: %v", err)
 					}
+				case "slice-struct-id":
+					var dst []struct {
+						ID int `toon:"id"`
+					}
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected root struct slice to decode, got error: %v", err)
+					}
+					assertExpectedSliceStructID(t, tc.Expected, dst)
 				default:
 					t.Fatalf("unsupported target mode: %s", c.target)
 				}
@@ -595,6 +633,26 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 						if uerr := json.Unmarshal(tc.Expected, &expected); uerr == nil && dst == expected {
 							t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
 						}
+					}
+				case "struct-tags-array":
+					var dst struct {
+						Tags []string `toon:"tags"`
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && len(dst.Tags) > 0 {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "struct-items-array":
+					var dst struct {
+						Items []struct {
+							SKU   string  `toon:"sku"`
+							Qty   int     `toon:"qty"`
+							Price float64 `toon:"price"`
+						} `toon:"items"`
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && len(dst.Items) > 0 {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
 					}
 				default:
 					var dst struct { // representative object target for gap tracking
@@ -893,6 +951,28 @@ func assertExpectedFloat(t *testing.T, raw json.RawMessage, actual float64) {
 	}
 	if actual != expected {
 		t.Fatalf("expected %v, got %v", expected, actual)
+	}
+}
+
+func assertExpectedSliceStructID(t *testing.T, raw json.RawMessage, actual []struct {
+	ID int `toon:"id"`
+}) {
+	t.Helper()
+	var expected []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected slice object list: %v", err)
+	}
+	if len(actual) != len(expected) {
+		t.Fatalf("expected %d rows, got %d", len(expected), len(actual))
+	}
+	for i := range expected {
+		var expID int
+		if err := json.Unmarshal(expected[i]["id"], &expID); err != nil {
+			t.Fatalf("failed to parse expected id at %d: %v", i, err)
+		}
+		if actual[i].ID != expID {
+			t.Fatalf("row %d expected id=%d got %d", i, expID, actual[i].ID)
+		}
 	}
 }
 

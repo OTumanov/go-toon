@@ -547,7 +547,7 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
 		testName:    "parses quoted empty string key with tabular array format",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-empty-key-array",
 	},
 }
@@ -791,6 +791,19 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 						t.Fatalf("expected quoted-key tabular decode, got error: %v", err)
 					}
 					assertExpectedXItemsArrayDecode(t, tc.Expected, dst)
+				case "struct-empty-key-array":
+					type item struct {
+						ID   int    `toon:"id"`
+						Name string `toon:"name"`
+					}
+					type wrap struct {
+						EmptyKey []item `toon:""`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected empty-key tabular decode, got error: %v", err)
+					}
+					assertExpectedEmptyKeyItemsArrayDecode(t, tc.Expected, dst)
 				case "struct-items-string-array":
 					type wrap struct {
 						Items []string `toon:"items"`
@@ -884,18 +897,6 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					}
 					err := Unmarshal([]byte(in), &dst)
 					if err == nil && len(dst.XCustom) > 0 {
-						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
-					}
-				case "struct-empty-key-array":
-					type item struct {
-						ID   int    `toon:"id"`
-						Name string `toon:"name"`
-					}
-					var dst struct {
-						NoField []item
-					}
-					err := Unmarshal([]byte(in), &dst)
-					if err == nil && len(dst.NoField) > 0 {
 						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
 					}
 				case "struct-items-id-value-array":
@@ -1483,6 +1484,17 @@ func assertExpectedXItemsArrayDecode(t *testing.T, raw json.RawMessage, actual i
 	items := rv.FieldByName("XItems")
 	if items.Len() != len(exp["x-items"]) {
 		t.Fatalf("expected %d rows, got %d", len(exp["x-items"]), items.Len())
+	}
+}
+
+func assertExpectedEmptyKeyItemsArrayDecode(t *testing.T, raw json.RawMessage, actual interface{}) {
+	t.Helper()
+	exp := map[string][]map[string]json.RawMessage{}
+	_ = json.Unmarshal(raw, &exp)
+	rv := reflect.ValueOf(actual)
+	items := rv.FieldByName("EmptyKey")
+	if items.Len() != len(exp[""]) {
+		t.Fatalf("expected %d rows for empty-key array, got %d", len(exp[""]), items.Len())
 	}
 }
 

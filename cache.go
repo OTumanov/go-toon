@@ -52,15 +52,14 @@ func buildStructInfo(t reflect.Type) *structInfo {
 			continue
 		}
 
-		name := field.Name
-		tag := field.Tag.Get("toon")
-		if tag == "-" {
-			continue
-		}
-		if tag != "" {
+		name := strings.ToLower(field.Name)
+		if tag, ok := field.Tag.Lookup("toon"); ok {
+			if tag == "-" {
+				continue
+			}
+			// Lookup preserves explicit empty tag (`toon:""`), which allows
+			// mapping fields to empty-string keys in spec fixtures.
 			name = tag
-		} else {
-			name = strings.ToLower(field.Name)
 		}
 
 		info.fields = append(info.fields, fieldInfo{

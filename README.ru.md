@@ -1,5 +1,8 @@
 # go-toon
 
+[![CI](https://github.com/OTumanov/go-toon/actions/workflows/ci.yml/badge.svg)](https://github.com/OTumanov/go-toon/actions/workflows/ci.yml)
+[![Spec Fixtures](https://github.com/OTumanov/go-toon/actions/workflows/spec-fixtures.yml/badge.svg)](https://github.com/OTumanov/go-toon/actions/workflows/spec-fixtures.yml)
+
 [English version](README.en.md)
 
 **TOON (Token-Oriented Object Notation)** — высокопроизводительная реализация формата TOON для Go. Библиотека ориентирована на сценарии с LLM (ChatGPT, Claude и т.д.), где объем контекста напрямую влияет на стоимость.
@@ -8,6 +11,14 @@
 
 - Экосистема TOON: [github.com/toon-format](https://github.com/toon-format)
 - Официальная Go-реализация: [github.com/toon-format/toon-go](https://github.com/toon-format/toon-go)
+- Официальные spec-тесты: [github.com/toon-format/spec/tree/main/tests](https://github.com/toon-format/spec/tree/main/tests)
+
+## Статус совместимости со спецификацией
+
+`go-toon` подключает в CI официальный набор `toon-format/spec/tests`.
+
+Текущий статус: интеграция fixtures автоматизирована; полные поведенческие
+проверки соответствия добавляются поэтапно.
 
 ## Почему TOON вместо JSON?
 

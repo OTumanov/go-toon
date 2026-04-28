@@ -22,6 +22,10 @@ func Marshal(v interface{}) ([]byte, error) {
 	}
 	rv = rv.Elem()
 
+	if supportsPrimitiveRoot(rv.Kind()) {
+		return marshalRootPrimitive(rv)
+	}
+
 	buf := bufPool.Get().([]byte)
 	buf = buf[:0]
 	defer bufPool.Put(buf)
@@ -35,6 +39,26 @@ func Marshal(v interface{}) ([]byte, error) {
 	result := make([]byte, len(e.buf))
 	copy(result, e.buf)
 	return result, nil
+}
+
+func marshalRootPrimitive(v reflect.Value) ([]byte, error) {
+	switch v.Kind() {
+	case reflect.String:
+		return []byte(v.String()), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return []byte(strconv.FormatInt(v.Int(), 10)), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return []byte(strconv.FormatUint(v.Uint(), 10)), nil
+	case reflect.Float32, reflect.Float64:
+		return []byte(strconv.FormatFloat(v.Float(), 'f', -1, 64)), nil
+	case reflect.Bool:
+		if v.Bool() {
+			return []byte("true"), nil
+		}
+		return []byte("false"), nil
+	default:
+		return nil, ErrInvalidTarget
+	}
 }
 
 // MarshalTo writes TOON encoding to w

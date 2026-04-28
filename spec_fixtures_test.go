@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -206,6 +207,54 @@ var trackedSubsetCases = []subsetCase{
 		mode:        "supported",
 		target:      "string",
 	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "encodes safe strings without quotes",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "encodes safe string with underscore and numbers",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "encodes positive integer",
+		mode:        "supported",
+		target:      "int",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "encodes decimal number",
+		mode:        "supported",
+		target:      "float",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "encodes negative integer",
+		mode:        "supported",
+		target:      "int",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "encodes true",
+		mode:        "supported",
+		target:      "bool",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "encodes false",
+		mode:        "supported",
+		target:      "bool",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "encodes Unicode string without quotes",
+		mode:        "supported",
+		target:      "string",
+	},
 }
 
 // TestSpecFixturesAvailability ensures CI can consume official TOON fixtures.
@@ -271,13 +320,18 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 				t.Fatalf("fixture test not found: %s (%s)", c.testName, c.fixtureFile)
 			}
 
-			var in string
-			if err := json.Unmarshal(tc.Input, &in); err != nil {
-				t.Fatalf("decode fixture input unmarshal failed: %v", err)
-			}
+			isEncodeCase := strings.Contains(c.fixtureFile, string(filepath.Separator)+"encode"+string(filepath.Separator))
 
 			switch c.mode {
 			case "supported":
+				if isEncodeCase {
+					runSupportedEncodeCase(t, c.target, tc)
+					return
+				}
+				var in string
+				if err := json.Unmarshal(tc.Input, &in); err != nil {
+					t.Fatalf("decode fixture input unmarshal failed: %v", err)
+				}
 				switch c.target {
 				case "struct":
 					var dst struct {
@@ -342,8 +396,15 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					t.Fatalf("unsupported target mode: %s", c.target)
 				}
 			case "known_gap":
+				if isEncodeCase {
+					t.Fatalf("known_gap encode case is not expected in current tracked set: %s", c.testName)
+				}
 				// Keep known gaps explicit and test-visible. A future change that
 				// starts passing these should trigger moving the case to supported.
+				var in string
+				if err := json.Unmarshal(tc.Input, &in); err != nil {
+					t.Fatalf("decode fixture input unmarshal failed: %v", err)
+				}
 				var dst struct { // representative object target for gap tracking
 					ID     int
 					Name   string
@@ -357,6 +418,60 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 				t.Fatalf("unknown subset case mode: %s", c.mode)
 			}
 		})
+	}
+}
+
+func runSupportedEncodeCase(t *testing.T, target string, tc struct {
+	Name     string          `json:"name"`
+	Input    json.RawMessage `json:"input"`
+	Expected json.RawMessage `json:"expected"`
+}) {
+	t.Helper()
+	expected := decodeExpectedEncodedText(t, tc.Expected)
+
+	switch target {
+	case "string":
+		var in string
+		if err := json.Unmarshal(tc.Input, &in); err != nil {
+			t.Fatalf("encode fixture input unmarshal failed: %v", err)
+		}
+		out, err := Marshal(&in)
+		if err != nil {
+			t.Fatalf("expected string primitive to encode, got error: %v", err)
+		}
+		assertExpectedEncodedText(t, expected, string(out))
+	case "int":
+		var in int
+		if err := json.Unmarshal(tc.Input, &in); err != nil {
+			t.Fatalf("encode fixture input unmarshal failed: %v", err)
+		}
+		out, err := Marshal(&in)
+		if err != nil {
+			t.Fatalf("expected int primitive to encode, got error: %v", err)
+		}
+		assertExpectedEncodedText(t, expected, string(out))
+	case "bool":
+		var in bool
+		if err := json.Unmarshal(tc.Input, &in); err != nil {
+			t.Fatalf("encode fixture input unmarshal failed: %v", err)
+		}
+		out, err := Marshal(&in)
+		if err != nil {
+			t.Fatalf("expected bool primitive to encode, got error: %v", err)
+		}
+		assertExpectedEncodedText(t, expected, string(out))
+	case "float":
+		var in float64
+		if err := json.Unmarshal(tc.Input, &in); err != nil {
+			t.Fatalf("encode fixture input unmarshal failed: %v", err)
+		}
+		out, err := Marshal(&in)
+		if err != nil {
+			t.Fatalf("expected float primitive to encode, got error: %v", err)
+		}
+		assertExpectedEncodedText(t, expected, string(out))
+	default:
+		t.Fatalf("unsupported encode target mode: %s", target)
 	}
 }
 
@@ -434,6 +549,22 @@ func assertExpectedFloat(t *testing.T, raw json.RawMessage, actual float64) {
 	}
 	if actual != expected {
 		t.Fatalf("expected %v, got %v", expected, actual)
+	}
+}
+
+func decodeExpectedEncodedText(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	var expected string
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected encoded text: %v", err)
+	}
+	return expected
+}
+
+func assertExpectedEncodedText(t *testing.T, expected, actual string) {
+	t.Helper()
+	if actual != expected {
+		t.Fatalf("expected encoded %q, got %q", expected, actual)
 	}
 }
 

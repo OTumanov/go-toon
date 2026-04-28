@@ -80,8 +80,8 @@ func TestMarshalInvalidTarget(t *testing.T) {
 	
 	var i int
 	_, err = Marshal(&i)
-	if err != ErrInvalidTarget {
-		t.Errorf("expected ErrInvalidTarget for non-struct/slice, got %v", err)
+	if err != nil {
+		t.Errorf("expected primitive pointer support, got %v", err)
 	}
 }
 

@@ -59,6 +59,42 @@ var trackedSubsetCases = []subsetCase{
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted object value with newline escape",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted object value with leading/trailing spaces",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted object value with only spaces",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted string value that looks like true",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted string value that looks like integer",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted string value that looks like negative decimal",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses quoted key with colon",
 		mode:        "supported",
 		target:      "struct",
@@ -256,6 +292,42 @@ var trackedSubsetCases = []subsetCase{
 		target:      "string",
 	},
 	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "quotes empty string",
+		mode:        "known_gap",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "quotes string that looks like true",
+		mode:        "known_gap",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "quotes string that looks like integer",
+		mode:        "known_gap",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "quotes string with leading zero",
+		mode:        "known_gap",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "escapes newline in string",
+		mode:        "known_gap",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "primitives.json"),
+		testName:    "escapes backslash in string",
+		mode:        "known_gap",
+		target:      "string",
+	},
+	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
 		testName:    "preserves key order in objects",
 		mode:        "supported",
@@ -390,6 +462,7 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 						Note    string
 						OrderID int `toon:"order:id"`
 						Text    string
+						V       string `toon:"v"`
 						UserName string `toon:"user.name"`
 						IndexKey int `toon:"[index]"`
 						BraceKey int `toon:"{key}"`
@@ -479,6 +552,18 @@ func runKnownGapEncodeCase(t *testing.T, target string, tc struct {
 	expected := decodeExpectedEncodedText(t, tc.Expected)
 
 	switch target {
+	case "string":
+		var in string
+		if err := json.Unmarshal(tc.Input, &in); err != nil {
+			t.Fatalf("encode fixture input string unmarshal failed: %v", err)
+		}
+		out, err := Marshal(&in)
+		if err != nil {
+			t.Fatalf("known-gap encode string case should still encode, got error: %v", err)
+		}
+		if string(out) == expected {
+			t.Fatalf("known-gap case unexpectedly matches spec output; move it to supported list")
+		}
 	case "struct-encode":
 		type nested struct {
 			C string `toon:"c"`

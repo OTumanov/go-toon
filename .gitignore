@@ -1,5 +1,8 @@
 # Qoder IDE
 .qoder/
+.cursor/
+.skrepka/
+doc/
 
 # Go
 *.exe

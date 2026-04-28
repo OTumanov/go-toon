@@ -6,7 +6,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	examplepkg "github.com/Otumanov/go-toon/example"
+	examplepkg "github.com/OTumanov/go-toon/example"
 )
 
 var jsoniterAPI = jsoniter.ConfigCompatibleWithStandardLibrary

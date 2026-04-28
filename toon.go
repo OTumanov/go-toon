@@ -8,7 +8,7 @@
 //
 // Conformance progress is tracked in SPEC_COMPATIBILITY.md in this repository.
 // The project is distributed under the MIT license.
-package toon // import "github.com/Otumanov/go-toon"
+package toon // import "github.com/OTumanov/go-toon"
 
 import "errors"
 

@@ -1,7 +1,7 @@
 # go-toon
 
-[![CI](https://github.com/Otumanov/go-toon/actions/workflows/ci.yml/badge.svg)](https://github.com/Otumanov/go-toon/actions/workflows/ci.yml)
-[![Spec Fixtures](https://github.com/Otumanov/go-toon/actions/workflows/spec-fixtures.yml/badge.svg)](https://github.com/Otumanov/go-toon/actions/workflows/spec-fixtures.yml)
+[![CI](https://github.com/OTumanov/go-toon/actions/workflows/ci.yml/badge.svg)](https://github.com/OTumanov/go-toon/actions/workflows/ci.yml)
+[![Spec Fixtures](https://github.com/OTumanov/go-toon/actions/workflows/spec-fixtures.yml/badge.svg)](https://github.com/OTumanov/go-toon/actions/workflows/spec-fixtures.yml)
 
 [Русская версия](README.ru.md)
 
@@ -32,8 +32,8 @@ See progress tracker: [`SPEC_COMPATIBILITY.md`](SPEC_COMPATIBILITY.md)
 ## Installation
 
 ```bash
-go get github.com/Otumanov/go-toon
-go install github.com/Otumanov/go-toon/cmd/toongen@latest
+go get github.com/OTumanov/go-toon
+go install github.com/OTumanov/go-toon/cmd/toongen@latest
 ```
 
 ## TOON format at a glance
@@ -59,7 +59,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/Otumanov/go-toon"
+	"github.com/OTumanov/go-toon"
 )
 
 type User struct {

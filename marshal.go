@@ -80,54 +80,88 @@ func marshalObjectLinesForSpec(v interface{}) ([]byte, error) {
 		return nil, ErrInvalidTarget
 	}
 
-	t := rv.Type()
-	info := getStructInfo(t)
 	buf := make([]byte, 0, 128)
+	if err := encodeSpecObjectInto(&buf, rv, 0); err != nil {
+		return nil, err
+	}
+	return buf, nil
+}
 
-	for i, f := range info.fields {
-		field := rv.Field(f.index)
-		if i > 0 {
-			buf = append(buf, '\n')
+func encodeSpecObjectInto(buf *[]byte, v reflect.Value, indent int) error {
+	info := getStructInfo(v.Type())
+	lineCount := 0
+
+	for _, f := range info.fields {
+		field := v.Field(f.index)
+		if lineCount > 0 {
+			*buf = append(*buf, '\n')
+		}
+		lineCount++
+
+		for i := 0; i < indent; i++ {
+			*buf = append(*buf, ' ')
 		}
 
 		key := f.name
 		if needsQuotedKey(key) {
 			key = `"` + escapeString(key) + `"`
 		}
-		buf = append(buf, key...)
-		buf = append(buf, ':', ' ')
+		*buf = append(*buf, key...)
+		*buf = append(*buf, ':')
 
-		encoded, err := encodeSpecValue(field)
+		encoded, nested, err := encodeSpecValue(field)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		buf = append(buf, encoded...)
+		if nested {
+			if len(encoded) > 0 {
+				*buf = append(*buf, '\n')
+				*buf = append(*buf, encoded...)
+			}
+			continue
+		}
+		*buf = append(*buf, ' ')
+		*buf = append(*buf, encoded...)
 	}
 
-	return buf, nil
+	return nil
 }
 
-func encodeSpecValue(v reflect.Value) ([]byte, error) {
+func encodeSpecValue(v reflect.Value) ([]byte, bool, error) {
+	switch v.Kind() {
+	case reflect.Ptr:
+		if v.IsNil() {
+			return []byte("null"), false, nil
+		}
+		return encodeSpecValue(v.Elem())
+	case reflect.Struct:
+		nested := make([]byte, 0, 64)
+		if err := encodeSpecObjectInto(&nested, v, 1); err != nil {
+			return nil, false, err
+		}
+		return nested, true, nil
+	}
+
 	switch v.Kind() {
 	case reflect.String:
 		s := v.String()
 		if needsQuotedStringValue(s) {
-			return []byte(`"` + escapeString(s) + `"`), nil
+			return []byte(`"` + escapeString(s) + `"`), false, nil
 		}
-		return []byte(s), nil
+		return []byte(s), false, nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return []byte(strconv.FormatInt(v.Int(), 10)), nil
+		return []byte(strconv.FormatInt(v.Int(), 10)), false, nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return []byte(strconv.FormatUint(v.Uint(), 10)), nil
+		return []byte(strconv.FormatUint(v.Uint(), 10)), false, nil
 	case reflect.Float32, reflect.Float64:
-		return []byte(strconv.FormatFloat(v.Float(), 'f', -1, 64)), nil
+		return []byte(strconv.FormatFloat(v.Float(), 'f', -1, 64)), false, nil
 	case reflect.Bool:
 		if v.Bool() {
-			return []byte("true"), nil
+			return []byte("true"), false, nil
 		}
-		return []byte("false"), nil
+		return []byte("false"), false, nil
 	default:
-		return nil, ErrInvalidTarget
+		return nil, false, ErrInvalidTarget
 	}
 }
 

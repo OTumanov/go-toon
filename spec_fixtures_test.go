@@ -258,14 +258,14 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
 		testName:    "preserves key order in objects",
-		mode:        "known_gap",
-		target:      "struct-encode",
+		mode:        "supported",
+		target:      "struct-encode-lines",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
 		testName:    "encodes null values in objects",
-		mode:        "known_gap",
-		target:      "struct-encode",
+		mode:        "supported",
+		target:      "struct-encode-lines",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
@@ -300,8 +300,8 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
 		testName:    "encodes deeply nested objects",
-		mode:        "known_gap",
-		target:      "struct-encode",
+		mode:        "supported",
+		target:      "struct-encode-lines",
 	},
 }
 
@@ -571,6 +571,45 @@ func runSupportedEncodeCase(t *testing.T, target string, tc struct {
 				FullName string `toon:"full name"`
 			}
 			in := s{FullName: "Ada"}
+			out, err := marshalObjectLinesForSpec(in)
+			if err != nil {
+				t.Fatalf("expected object-line encode, got error: %v", err)
+			}
+			assertExpectedEncodedText(t, expected, string(out))
+		case "preserves key order in objects":
+			type s struct {
+				ID     int    `toon:"id"`
+				Name   string `toon:"name"`
+				Active bool   `toon:"active"`
+			}
+			in := s{ID: 123, Name: "Ada", Active: true}
+			out, err := marshalObjectLinesForSpec(in)
+			if err != nil {
+				t.Fatalf("expected object-line encode, got error: %v", err)
+			}
+			assertExpectedEncodedText(t, expected, string(out))
+		case "encodes null values in objects":
+			type s struct {
+				ID    int     `toon:"id"`
+				Value *string `toon:"value"`
+			}
+			in := s{ID: 123, Value: nil}
+			out, err := marshalObjectLinesForSpec(in)
+			if err != nil {
+				t.Fatalf("expected object-line encode, got error: %v", err)
+			}
+			assertExpectedEncodedText(t, expected, string(out))
+		case "encodes deeply nested objects":
+			type level3 struct {
+				C string `toon:"c"`
+			}
+			type level2 struct {
+				B level3 `toon:"b"`
+			}
+			type level1 struct {
+				A level2 `toon:"a"`
+			}
+			in := level1{A: level2{B: level3{C: "deep"}}}
 			out, err := marshalObjectLinesForSpec(in)
 			if err != nil {
 				t.Fatalf("expected object-line encode, got error: %v", err)

@@ -45,7 +45,11 @@ func Marshal(v interface{}) ([]byte, error) {
 func marshalRootPrimitive(v reflect.Value) ([]byte, error) {
 	switch v.Kind() {
 	case reflect.String:
-		return []byte(v.String()), nil
+		s := v.String()
+		if needsQuotedStringValue(s) {
+			return []byte(`"` + escapeString(s) + `"`), nil
+		}
+		return []byte(s), nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return []byte(strconv.FormatInt(v.Int(), 10)), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:

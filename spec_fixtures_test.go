@@ -294,37 +294,37 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("encode", "primitives.json"),
 		testName:    "quotes empty string",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "string",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "primitives.json"),
 		testName:    "quotes string that looks like true",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "string",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "primitives.json"),
 		testName:    "quotes string that looks like integer",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "string",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "primitives.json"),
 		testName:    "quotes string with leading zero",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "string",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "primitives.json"),
 		testName:    "escapes newline in string",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "string",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "primitives.json"),
 		testName:    "escapes backslash in string",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "string",
 	},
 	{

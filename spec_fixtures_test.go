@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -444,19 +445,19 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses string arrays inline",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-tags-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses number arrays inline",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-tags-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
 		testName:    "parses tabular arrays of uniform objects",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-array",
 	},
 }
@@ -610,6 +611,30 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 						t.Fatalf("expected root struct slice to decode, got error: %v", err)
 					}
 					assertExpectedSliceStructID(t, tc.Expected, dst)
+				case "struct-tags-array":
+					type tagsWrap struct {
+						Tags []string `toon:"tags"`
+						Nums []int    `toon:"nums"`
+					}
+					var dst tagsWrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected inline array decode, got error: %v", err)
+					}
+					assertExpectedStructArrayDecode(t, tc.Expected, dst)
+				case "struct-items-array":
+					type item struct {
+						SKU   string  `toon:"sku"`
+						Qty   int     `toon:"qty"`
+						Price float64 `toon:"price"`
+					}
+					type wrap struct {
+						Items []item `toon:"items"`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected tabular object array decode, got error: %v", err)
+					}
+					assertExpectedStructArrayDecode(t, tc.Expected, dst)
 				default:
 					t.Fatalf("unsupported target mode: %s", c.target)
 				}
@@ -973,6 +998,25 @@ func assertExpectedSliceStructID(t *testing.T, raw json.RawMessage, actual []str
 		if actual[i].ID != expID {
 			t.Fatalf("row %d expected id=%d got %d", i, expID, actual[i].ID)
 		}
+	}
+}
+
+func assertExpectedStructArrayDecode(t *testing.T, raw json.RawMessage, actual interface{}) {
+	t.Helper()
+	var expected interface{}
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected struct-array value: %v", err)
+	}
+	actualJSON, err := json.Marshal(actual)
+	if err != nil {
+		t.Fatalf("failed to marshal actual struct-array value: %v", err)
+	}
+	var actualParsed interface{}
+	if err := json.Unmarshal(actualJSON, &actualParsed); err != nil {
+		t.Fatalf("failed to parse actual struct-array value: %v", err)
+	}
+	if !reflect.DeepEqual(expected, actualParsed) {
+		t.Fatalf("decoded value mismatch: expected=%v actual=%v", expected, actualParsed)
 	}
 }
 

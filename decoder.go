@@ -73,7 +73,8 @@ func unmarshalObjectLines(data []byte, v reflect.Value) error {
 	var headerPath [][]byte
 	var headerIndents []int
 
-	for _, rawLine := range lines {
+	for i := 0; i < len(lines); i++ {
+		rawLine := lines[i]
 		indent := leadingSpaces(rawLine)
 		line := bytes.TrimSpace(rawLine)
 		if len(line) == 0 {
@@ -98,7 +99,30 @@ func unmarshalObjectLines(data []byte, v reflect.Value) error {
 			return ErrMalformedTOON
 		}
 
-		// Empty object header line. Keep path context for nested lines.
+		// Array header line: e.g. tags[3]: ... or items[2]{id,name}:
+		if baseKey, size, fields, ok := parseArrayHeaderKey(key); ok {
+			fullPath := make([][]byte, 0, len(headerPath)+1)
+			fullPath = append(fullPath, headerPath...)
+			fullPath = append(fullPath, baseKey)
+
+			if len(fields) > 0 {
+				// Tabular rows follow on subsequent lines.
+				rows, consumed := collectArrayRows(lines, i+1, size)
+				i += consumed
+				if err := setStructTabularArrayByPath(v, info, fullPath, key, rows); err != nil {
+					return err
+				}
+				continue
+			}
+
+			// Inline primitive arrays in object context.
+			if err := setStructInlineArrayByPath(v, info, fullPath, val, size); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Empty object header line. Keep path context for nested object lines.
 		if len(val) == 0 {
 			// Same-level header should replace previous node on that level.
 			if len(headerIndents) > 0 && indent == headerIndents[len(headerIndents)-1] {
@@ -170,6 +194,194 @@ func setStructFieldByPath(root reflect.Value, rootInfo *structInfo, path [][]byt
 		return ErrMalformedTOON
 	}
 	return setFieldBytes(field, parsedVal)
+}
+
+func setStructInlineArrayByPath(root reflect.Value, rootInfo *structInfo, path [][]byte, rawVal []byte, size int) error {
+	current := root
+	currentInfo := rootInfo
+
+	for i := 0; i < len(path)-1; i++ {
+		idx := currentInfo.findFieldIndex(path[i])
+		if idx < 0 {
+			return nil
+		}
+		field := current.Field(idx)
+		if !field.CanSet() || field.Kind() != reflect.Struct {
+			return nil
+		}
+		current = field
+		currentInfo = getStructInfo(current.Type())
+	}
+
+	last := path[len(path)-1]
+	idx := currentInfo.findFieldIndex(last)
+	if idx < 0 {
+		return nil
+	}
+	field := current.Field(idx)
+	if !field.CanSet() || field.Kind() != reflect.Slice {
+		return nil
+	}
+
+	items, err := splitCSVValues(rawVal)
+	if err != nil {
+		return ErrMalformedTOON
+	}
+	if size >= 0 && len(items) != size {
+		return ErrMalformedTOON
+	}
+
+	elemType := field.Type().Elem()
+	out := reflect.MakeSlice(field.Type(), 0, len(items))
+	for _, it := range items {
+		elem := reflect.New(elemType).Elem()
+		parsed, err := unquoteIfNeeded(bytes.TrimSpace(it))
+		if err != nil {
+			return ErrMalformedTOON
+		}
+		if err := setFieldBytes(elem, parsed); err != nil {
+			return err
+		}
+		out = reflect.Append(out, elem)
+	}
+	field.Set(out)
+	return nil
+}
+
+func setStructTabularArrayByPath(root reflect.Value, rootInfo *structInfo, path [][]byte, headerKey []byte, rows [][]byte) error {
+	current := root
+	currentInfo := rootInfo
+	for i := 0; i < len(path)-1; i++ {
+		idx := currentInfo.findFieldIndex(path[i])
+		if idx < 0 {
+			return nil
+		}
+		field := current.Field(idx)
+		if !field.CanSet() || field.Kind() != reflect.Struct {
+			return nil
+		}
+		current = field
+		currentInfo = getStructInfo(current.Type())
+	}
+
+	last := path[len(path)-1]
+	idx := currentInfo.findFieldIndex(last)
+	if idx < 0 {
+		return nil
+	}
+	field := current.Field(idx)
+	if !field.CanSet() || field.Kind() != reflect.Slice {
+		return nil
+	}
+
+	payload := make([]byte, 0, 256)
+	payload = append(payload, headerKey...)
+	payload = append(payload, ':')
+	for _, row := range rows {
+		payload = append(payload, '\n')
+		payload = append(payload, bytes.TrimSpace(row)...)
+	}
+
+	tmpPtr := reflect.New(field.Type())
+	if err := Unmarshal(payload, tmpPtr.Interface()); err != nil {
+		return err
+	}
+	field.Set(tmpPtr.Elem())
+	return nil
+}
+
+func collectArrayRows(lines [][]byte, start, size int) (rows [][]byte, consumed int) {
+	if size <= 0 {
+		return nil, 0
+	}
+	rows = make([][]byte, 0, size)
+	for i := start; i < len(lines) && len(rows) < size; i++ {
+		line := bytes.TrimSpace(lines[i])
+		if len(line) == 0 {
+			consumed++
+			continue
+		}
+		rows = append(rows, line)
+		consumed++
+	}
+	return rows, consumed
+}
+
+func parseArrayHeaderKey(key []byte) (base []byte, size int, fields [][]byte, ok bool) {
+	lb := bytes.IndexByte(key, '[')
+	if lb <= 0 {
+		return nil, 0, nil, false
+	}
+	rb := bytes.IndexByte(key, ']')
+	if rb <= lb+1 {
+		return nil, 0, nil, false
+	}
+
+	sz, err := parseIntBytes(key[lb+1 : rb])
+	if err != nil || sz < 0 {
+		return nil, 0, nil, false
+	}
+	base = key[:lb]
+	size = int(sz)
+
+	rest := key[rb+1:]
+	if len(rest) == 0 {
+		return base, size, nil, true
+	}
+	if rest[0] != '{' || rest[len(rest)-1] != '}' {
+		return nil, 0, nil, false
+	}
+	inner := rest[1 : len(rest)-1]
+	if len(inner) == 0 {
+		return base, size, nil, true
+	}
+	parts, err := splitCSVValues(inner)
+	if err != nil {
+		return nil, 0, nil, false
+	}
+	fields = make([][]byte, 0, len(parts))
+	for _, p := range parts {
+		f, err := unquoteIfNeeded(bytes.TrimSpace(p))
+		if err != nil {
+			return nil, 0, nil, false
+		}
+		fields = append(fields, f)
+	}
+	return base, size, fields, true
+}
+
+func splitCSVValues(raw []byte) ([][]byte, error) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return [][]byte{}, nil
+	}
+	var out [][]byte
+	start := 0
+	inQuotes := false
+	escape := false
+	for i := 0; i < len(raw); i++ {
+		b := raw[i]
+		if escape {
+			escape = false
+			continue
+		}
+		if b == '\\' && inQuotes {
+			escape = true
+			continue
+		}
+		if b == '"' {
+			inQuotes = !inQuotes
+			continue
+		}
+		if b == ',' && !inQuotes {
+			out = append(out, bytes.TrimSpace(raw[start:i]))
+			start = i + 1
+		}
+	}
+	if inQuotes {
+		return nil, ErrMalformedTOON
+	}
+	out = append(out, bytes.TrimSpace(raw[start:]))
+	return out, nil
 }
 
 func splitObjectLine(line []byte) (key []byte, val []byte, ok bool) {

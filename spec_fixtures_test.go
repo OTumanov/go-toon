@@ -414,19 +414,19 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "numbers.json"),
 		testName:    "parses exponent notation",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "float",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "numbers.json"),
 		testName:    "parses exponent notation with uppercase E",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "float",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "numbers.json"),
 		testName:    "parses negative exponent notation",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "float",
 	},
 }

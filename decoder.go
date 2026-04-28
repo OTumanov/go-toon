@@ -548,33 +548,11 @@ func parseFloatBytes(b []byte) (float64, error) {
 	if len(b) == 0 {
 		return 0, ErrMalformedTOON
 	}
-	var n float64
-	var div float64 = 1
-	var frac bool
-	var neg bool
-	i := 0
-	if b[0] == '-' {
-		neg = true
-		i = 1
-	}
-	for ; i < len(b); i++ {
-		c := b[i]
-		if c == '.' {
-			frac = true
-			continue
-		}
-		if c < '0' || c > '9' {
-			return 0, ErrMalformedTOON
-		}
-		if frac {
-			div *= 10
-			n = n + float64(c-'0')/div
-		} else {
-			n = n*10 + float64(c-'0')
-		}
-	}
-	if neg {
-		n = -n
+	// Exponent forms (e.g. 1e6, -1E-3) are part of spec numeric decoding.
+	// Use strconv for correctness across mantissa/exponent combinations.
+	n, err := strconv.ParseFloat(string(b), 64)
+	if err != nil {
+		return 0, ErrMalformedTOON
 	}
 	return n, nil
 }

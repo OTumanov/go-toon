@@ -630,6 +630,8 @@ func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 	var newSlice reflect.Value
 	if h.size > 0 {
 		newSlice = reflect.MakeSlice(v.Type(), h.size, h.size)
+	} else if h.size == 0 {
+		newSlice = reflect.MakeSlice(v.Type(), 0, 0)
 	}
 
 	rowIdx := 0

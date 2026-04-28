@@ -445,73 +445,73 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses string arrays inline",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-tags-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses number arrays inline",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-tags-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses empty arrays",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses single-item array with empty string",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses multi-item array with empty string",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses whitespace-only strings in arrays",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses strings with delimiters in arrays",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses strings that look like primitives when quoted",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses strings with structural tokens in arrays",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses quoted key with inline array",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-mykey-int-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses quoted key with empty array",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-xcustom-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
 		testName:    "parses tabular arrays of uniform objects",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-array",
 	},
 }
@@ -674,7 +674,7 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected inline array decode, got error: %v", err)
 					}
-					assertExpectedStructArrayDecode(t, tc.Expected, dst)
+					assertExpectedTagsOrNumsDecode(t, tc.Expected, dst)
 				case "struct-items-array":
 					type item struct {
 						SKU   string  `toon:"sku"`
@@ -688,7 +688,7 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected tabular object array decode, got error: %v", err)
 					}
-					assertExpectedStructArrayDecode(t, tc.Expected, dst)
+					assertExpectedItemsObjectArrayDecode(t, tc.Expected, dst)
 				case "struct-items-string-array":
 					type wrap struct {
 						Items []string `toon:"items"`
@@ -697,7 +697,7 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected string array decode, got error: %v", err)
 					}
-					assertExpectedStructArrayDecode(t, tc.Expected, dst)
+					assertExpectedItemsStringArrayDecode(t, tc.Expected, dst)
 				case "struct-mykey-int-array":
 					type wrap struct {
 						MyKey []int `toon:"my-key"`
@@ -706,7 +706,7 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected quoted-key int array decode, got error: %v", err)
 					}
-					assertExpectedStructArrayDecode(t, tc.Expected, dst)
+					assertExpectedMyKeyIntArrayDecode(t, tc.Expected, dst)
 				case "struct-xcustom-string-array":
 					type wrap struct {
 						XCustom []string `toon:"x-custom"`
@@ -715,7 +715,7 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected quoted-key empty string array decode, got error: %v", err)
 					}
-					assertExpectedStructArrayDecode(t, tc.Expected, dst)
+					assertExpectedXCustomStringArrayDecode(t, tc.Expected, dst)
 				default:
 					t.Fatalf("unsupported target mode: %s", c.target)
 				}
@@ -1106,22 +1106,134 @@ func assertExpectedSliceStructID(t *testing.T, raw json.RawMessage, actual []str
 	}
 }
 
-func assertExpectedStructArrayDecode(t *testing.T, raw json.RawMessage, actual interface{}) {
+func assertExpectedTagsOrNumsDecode(t *testing.T, raw json.RawMessage, actual struct {
+	Tags []string `toon:"tags"`
+	Nums []int    `toon:"nums"`
+}) {
 	t.Helper()
-	var expected interface{}
+	var expected map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &expected); err != nil {
-		t.Fatalf("failed to parse expected struct-array value: %v", err)
+		t.Fatalf("failed to parse expected tags/nums payload: %v", err)
 	}
-	actualJSON, err := json.Marshal(actual)
-	if err != nil {
-		t.Fatalf("failed to marshal actual struct-array value: %v", err)
+	if v, ok := expected["tags"]; ok {
+		var exp []string
+		if err := json.Unmarshal(v, &exp); err != nil {
+			t.Fatalf("failed to parse expected tags: %v", err)
+		}
+		if len(actual.Tags) != len(exp) {
+			t.Fatalf("expected %d tags, got %d", len(exp), len(actual.Tags))
+		}
+		for i := range exp {
+			if actual.Tags[i] != exp[i] {
+				t.Fatalf("tag[%d] expected %q got %q", i, exp[i], actual.Tags[i])
+			}
+		}
 	}
-	var actualParsed interface{}
-	if err := json.Unmarshal(actualJSON, &actualParsed); err != nil {
-		t.Fatalf("failed to parse actual struct-array value: %v", err)
+	if v, ok := expected["nums"]; ok {
+		var exp []int
+		if err := json.Unmarshal(v, &exp); err != nil {
+			t.Fatalf("failed to parse expected nums: %v", err)
+		}
+		if len(actual.Nums) != len(exp) {
+			t.Fatalf("expected %d nums, got %d", len(exp), len(actual.Nums))
+		}
+		for i := range exp {
+			if actual.Nums[i] != exp[i] {
+				t.Fatalf("num[%d] expected %d got %d", i, exp[i], actual.Nums[i])
+			}
+		}
 	}
-	if !reflect.DeepEqual(expected, actualParsed) {
-		t.Fatalf("decoded value mismatch: expected=%v actual=%v", expected, actualParsed)
+}
+
+func assertExpectedItemsStringArrayDecode(t *testing.T, raw json.RawMessage, actual struct {
+	Items []string `toon:"items"`
+}) {
+	t.Helper()
+	var expected map[string][]string
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected items string array: %v", err)
+	}
+	exp := expected["items"]
+	if len(actual.Items) != len(exp) {
+		t.Fatalf("expected %d items, got %d", len(exp), len(actual.Items))
+	}
+	for i := range exp {
+		if actual.Items[i] != exp[i] {
+			t.Fatalf("items[%d] expected %q got %q", i, exp[i], actual.Items[i])
+		}
+	}
+}
+
+func assertExpectedMyKeyIntArrayDecode(t *testing.T, raw json.RawMessage, actual struct {
+	MyKey []int `toon:"my-key"`
+}) {
+	t.Helper()
+	var expected map[string][]int
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected my-key int array: %v", err)
+	}
+	exp := expected["my-key"]
+	if len(actual.MyKey) != len(exp) {
+		t.Fatalf("expected %d my-key items, got %d", len(exp), len(actual.MyKey))
+	}
+	for i := range exp {
+		if actual.MyKey[i] != exp[i] {
+			t.Fatalf("my-key[%d] expected %d got %d", i, exp[i], actual.MyKey[i])
+		}
+	}
+}
+
+func assertExpectedXCustomStringArrayDecode(t *testing.T, raw json.RawMessage, actual struct {
+	XCustom []string `toon:"x-custom"`
+}) {
+	t.Helper()
+	var expected map[string][]string
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected x-custom string array: %v", err)
+	}
+	exp := expected["x-custom"]
+	if len(actual.XCustom) != len(exp) {
+		t.Fatalf("expected %d x-custom items, got %d", len(exp), len(actual.XCustom))
+	}
+	for i := range exp {
+		if actual.XCustom[i] != exp[i] {
+			t.Fatalf("x-custom[%d] expected %q got %q", i, exp[i], actual.XCustom[i])
+		}
+	}
+}
+
+func assertExpectedItemsObjectArrayDecode(t *testing.T, raw json.RawMessage, actual interface{}) {
+	t.Helper()
+	var expected map[string][]map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected items object array: %v", err)
+	}
+	exp := expected["items"]
+
+	rv := reflect.ValueOf(actual)
+	itemsField := rv.FieldByName("Items")
+	if !itemsField.IsValid() || itemsField.Kind() != reflect.Slice {
+		t.Fatalf("actual payload must contain Items slice")
+	}
+	if itemsField.Len() != len(exp) {
+		t.Fatalf("expected %d tabular rows, got %d", len(exp), itemsField.Len())
+	}
+	for i := range exp {
+		var sku string
+		var qty int
+		var price float64
+		_ = json.Unmarshal(exp[i]["sku"], &sku)
+		_ = json.Unmarshal(exp[i]["qty"], &qty)
+		_ = json.Unmarshal(exp[i]["price"], &price)
+
+		row := itemsField.Index(i)
+		gotSKU := row.FieldByName("SKU").String()
+		gotQty := int(row.FieldByName("Qty").Int())
+		gotPrice := row.FieldByName("Price").Float()
+		if gotSKU != sku || gotQty != qty || gotPrice != price {
+			t.Fatalf("row %d expected sku=%q qty=%d price=%v got sku=%q qty=%d price=%v",
+				i, sku, qty, price, gotSKU, gotQty, gotPrice)
+		}
 	}
 }
 

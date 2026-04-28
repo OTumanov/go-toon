@@ -35,6 +35,15 @@ func Unmarshal(data []byte, v interface{}) error {
 		return err
 	}
 
+	// Array headers with a name (e.g. items[3]: ..., items[2]{...}: ...) are
+	// object-field constructs in spec fixtures when target is a struct.
+	// Route them through object-line fallback instead of root-header decode.
+	if rv.Elem().Kind() == reflect.Struct && h.size >= 0 && len(h.name) > 0 {
+		if ferr := unmarshalObjectLines(data, rv.Elem()); ferr == nil {
+			return nil
+		}
+	}
+
 	return d.decodeValue(h, rv.Elem())
 }
 
@@ -322,6 +331,10 @@ func parseArrayHeaderKey(key []byte) (base []byte, size int, fields [][]byte, ok
 		return nil, 0, nil, false
 	}
 	base = key[:lb]
+	base = bytes.TrimSpace(base)
+	if ub, err := unquoteIfNeeded(base); err == nil {
+		base = ub
+	}
 	size = int(sz)
 
 	rest := key[rb+1:]

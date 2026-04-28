@@ -64,6 +64,54 @@ var trackedSubsetCases = []subsetCase{
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted key with brackets",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted key with braces",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted key with comma",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted key with spaces",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted key with leading hyphen",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted key with leading and trailing spaces",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted numeric key",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "unescapes quotes in key",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses dotted keys as identifiers",
 		mode:        "supported",
 		target:      "struct",
@@ -241,6 +289,14 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 						OrderID int `toon:"order:id"`
 						Text    string
 						UserName string `toon:"user.name"`
+						IndexKey int `toon:"[index]"`
+						BraceKey int `toon:"{key}"`
+						CommaKey int `toon:"a,b"`
+						FullName string `toon:"full name"`
+						LeadHyphen int `toon:"-lead"`
+						SpacedKey int `toon:" a "`
+						NumericKey string `toon:"123"`
+						QuotedKey int `toon:"he said \"hi\""`
 						A        struct {
 							B struct {
 								C string `toon:"c"`

@@ -553,19 +553,19 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
 		testName:    "parses root-level primitive array inline",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "root-mixed-any-slice",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
 		testName:    "parses root-level array of arrays",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "root-nested-int-slices",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
 		testName:    "parses root-level array of non-uniform objects in list format",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "root-list-objects",
 	},
 	{
@@ -725,6 +725,24 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 						t.Fatalf("expected root struct slice to decode, got error: %v", err)
 					}
 					assertExpectedSliceStructID(t, tc.Expected, dst)
+				case "root-nested-int-slices":
+					var dst [][]int
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected nested root slices to decode, got error: %v", err)
+					}
+					assertExpectedNestedIntSlices(t, tc.Expected, dst)
+				case "root-mixed-any-slice":
+					var dst []interface{}
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected mixed root slice to decode, got error: %v", err)
+					}
+					assertExpectedMixedAnySlice(t, tc.Expected, dst)
+				case "root-list-objects":
+					var dst []map[string]interface{}
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected root list objects to decode, got error: %v", err)
+					}
+					assertExpectedRootListObjects(t, tc.Expected, dst)
 				case "struct-tags-array":
 					type tagsWrap struct {
 						Tags []string `toon:"tags"`
@@ -1297,6 +1315,111 @@ func assertExpectedSliceStructID(t *testing.T, raw json.RawMessage, actual []str
 		if actual[i].ID != expID {
 			t.Fatalf("row %d expected id=%d got %d", i, expID, actual[i].ID)
 		}
+	}
+}
+
+func assertExpectedNestedIntSlices(t *testing.T, raw json.RawMessage, actual [][]int) {
+	t.Helper()
+	var expected [][]int
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected nested int slices: %v", err)
+	}
+	if len(actual) != len(expected) {
+		t.Fatalf("expected %d outer rows, got %d", len(expected), len(actual))
+	}
+	for i := range expected {
+		if len(actual[i]) != len(expected[i]) {
+			t.Fatalf("row %d expected len=%d got %d", i, len(expected[i]), len(actual[i]))
+		}
+		for j := range expected[i] {
+			if actual[i][j] != expected[i][j] {
+				t.Fatalf("row %d col %d expected %d got %d", i, j, expected[i][j], actual[i][j])
+			}
+		}
+	}
+}
+
+func assertExpectedMixedAnySlice(t *testing.T, raw json.RawMessage, actual []interface{}) {
+	t.Helper()
+	var expected []interface{}
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected mixed any slice: %v", err)
+	}
+	if len(actual) != len(expected) {
+		t.Fatalf("expected %d items, got %d", len(expected), len(actual))
+	}
+	for i := range expected {
+		ev := expected[i]
+		av := actual[i]
+		switch e := ev.(type) {
+		case bool:
+			got, ok := av.(bool)
+			if !ok || got != e {
+				t.Fatalf("item %d expected bool %v, got %#v", i, e, av)
+			}
+		case float64:
+			switch g := av.(type) {
+			case int:
+				if float64(g) != e {
+					t.Fatalf("item %d expected number %v, got %v", i, e, g)
+				}
+			case float64:
+				if g != e {
+					t.Fatalf("item %d expected number %v, got %v", i, e, g)
+				}
+			default:
+				t.Fatalf("item %d expected numeric value %v, got %#v", i, e, av)
+			}
+		case string:
+			got, ok := av.(string)
+			if !ok || got != e {
+				t.Fatalf("item %d expected string %q, got %#v", i, e, av)
+			}
+		default:
+			if !reflect.DeepEqual(av, ev) {
+				t.Fatalf("item %d expected %#v, got %#v", i, ev, av)
+			}
+		}
+	}
+}
+
+func assertExpectedRootListObjects(t *testing.T, raw json.RawMessage, actual []map[string]interface{}) {
+	t.Helper()
+	var expected []map[string]interface{}
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected root list objects: %v", err)
+	}
+	if len(actual) != len(expected) {
+		t.Fatalf("expected %d objects, got %d", len(expected), len(actual))
+	}
+	for i := range expected {
+		for k, ev := range expected[i] {
+			av, ok := actual[i][k]
+			if !ok {
+				t.Fatalf("item %d missing key %q", i, k)
+			}
+			if !looselyEqualJSONNumber(av, ev) {
+				t.Fatalf("item %d key %q expected %#v, got %#v", i, k, ev, av)
+			}
+		}
+	}
+}
+
+func looselyEqualJSONNumber(actual interface{}, expected interface{}) bool {
+	switch e := expected.(type) {
+	case float64:
+		switch a := actual.(type) {
+		case int:
+			return float64(a) == e
+		case int64:
+			return float64(a) == e
+		case float64:
+			return a == e
+		default:
+			return false
+		}
+	default:
+		return reflect.DeepEqual(actual, expected)
 	}
 }
 

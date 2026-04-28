@@ -2,6 +2,7 @@ package toon
 
 import (
 	"testing"
+	"time"
 )
 
 func TestDecoderNext(t *testing.T) {
@@ -159,4 +160,59 @@ func TestUnmarshalInvalidTarget(t *testing.T) {
 	if err != ErrInvalidTarget {
 		t.Errorf("expected ErrInvalidTarget for non-struct/slice, got %v", err)
 	}
+}
+
+func TestUnmarshalRootListNonUniformObjectsDoesNotHang(t *testing.T) {
+	data := []byte("[2]:\n  - id: 1\n  - id: 2\n    name: Ada")
+	var out []map[string]interface{}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- Unmarshal(data, &out)
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("unexpected unmarshal error: %v", err)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("unmarshal timed out; possible parser loop regression")
+	}
+
+	if len(out) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(out))
+	}
+	if id, ok := out[0]["id"].(int); !ok || id != 1 {
+		t.Fatalf("expected first item id=1, got %#v", out[0]["id"])
+	}
+	if id, ok := out[1]["id"].(int); !ok || id != 2 {
+		t.Fatalf("expected second item id=2, got %#v", out[1]["id"])
+	}
+	if name, ok := out[1]["name"].(string); !ok || name != "Ada" {
+		t.Fatalf("expected second item name=Ada, got %#v", out[1]["name"])
+	}
+}
+
+func FuzzUnmarshalNoPanic(f *testing.F) {
+	seeds := [][]byte{
+		[]byte(""),
+		[]byte("user{id,name}:1,Ada"),
+		[]byte("[2]:\n  - id: 1\n  - id: 2\n    name: Ada"),
+		[]byte("[5]: x,y,\"true\",true,10"),
+		[]byte("items[2]:\n  - [2]: 1,2\n  - [0]:"),
+	}
+	for _, s := range seeds {
+		f.Add(s)
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var out struct{}
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("unmarshal panicked: %v", r)
+			}
+		}()
+		_ = Unmarshal(data, &out)
+	})
 }

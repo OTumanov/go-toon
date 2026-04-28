@@ -452,7 +452,7 @@ func collectListRows(lines [][]byte, start, size int) (rows [][]byte, consumed i
 
 func parseArrayHeaderKey(key []byte) (base []byte, size int, fields [][]byte, ok bool) {
 	lb := bytes.IndexByte(key, '[')
-	if lb <= 0 {
+	if lb < 0 {
 		return nil, 0, nil, false
 	}
 	rb := bytes.IndexByte(key, ']')
@@ -781,6 +781,10 @@ func (d *decoder) decodeStruct(h *header, v reflect.Value) error {
 func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 	elemType := v.Type().Elem()
 
+	if len(h.fields) == 0 {
+		return d.decodeNonTabularSlice(h, v, elemType)
+	}
+
 	// Pre-allocate slice if size is known from header
 	var newSlice reflect.Value
 	if h.size > 0 {
@@ -827,6 +831,289 @@ func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 
 	v.Set(newSlice)
 	return nil
+}
+
+func (d *decoder) decodeNonTabularSlice(h *header, v reflect.Value, elemType reflect.Type) error {
+	d.skipWhitespace()
+	if h.size == 0 {
+		v.Set(reflect.MakeSlice(v.Type(), 0, 0))
+		return nil
+	}
+
+	// Inline form: [n]: a,b,c
+	if b, ok := d.peek(); ok && b != '-' {
+		start := d.pos
+		for {
+			b, ok := d.peek()
+			if !ok || b == '\n' || b == '\r' {
+				break
+			}
+			d.pos++
+		}
+		values, err := splitCSVValues(d.data[start:d.pos])
+		if err != nil {
+			return ErrMalformedTOON
+		}
+		return setSliceFromValues(v, elemType, values)
+	}
+
+	// List form:
+	// [n]:
+	// - value
+	out := reflect.MakeSlice(v.Type(), 0, h.size)
+	for {
+		d.skipWhitespace()
+		if _, ok := d.peek(); !ok {
+			break
+		}
+		b, _ := d.peek()
+		if b != '-' {
+			break
+		}
+		d.pos++
+		d.skipWhitespace()
+
+		start := d.pos
+		for {
+			b, ok := d.peek()
+			if !ok || b == '\n' || b == '\r' {
+				break
+			}
+			d.pos++
+		}
+		row := bytes.TrimSpace(d.data[start:d.pos])
+		continuationRows := make([][]byte, 0, 2)
+		baseIndent := lineIndentWidth(d.data[start:d.pos])
+		if b, ok := d.peek(); ok && (b == '\n' || b == '\r') {
+			d.pos++
+			if b == '\r' {
+				if b2, ok := d.peek(); ok && b2 == '\n' {
+					d.pos++
+				}
+			}
+		}
+		for {
+			lineStart := d.pos
+			for {
+				b, ok := d.peek()
+				if !ok || b == '\n' || b == '\r' {
+					break
+				}
+				d.pos++
+			}
+			lineRaw := d.data[lineStart:d.pos]
+			trimmed := bytes.TrimSpace(lineRaw)
+			if len(trimmed) == 0 {
+				if b, ok := d.peek(); ok && (b == '\n' || b == '\r') {
+					d.pos++
+					if b == '\r' {
+						if b2, ok := d.peek(); ok && b2 == '\n' {
+							d.pos++
+						}
+					}
+				} else if lineStart == d.pos {
+					break
+				}
+				continue
+			}
+			indent := lineIndentWidth(lineRaw)
+			if indent <= baseIndent || (len(trimmed) > 0 && trimmed[0] == '-') {
+				d.pos = lineStart
+				break
+			}
+			continuationRows = append(continuationRows, trimmed)
+			if b, ok := d.peek(); ok && (b == '\n' || b == '\r') {
+				d.pos++
+				if b == '\r' {
+					if b2, ok := d.peek(); ok && b2 == '\n' {
+						d.pos++
+					}
+				}
+			}
+		}
+
+		if len(row) == 0 {
+			out = reflect.Append(out, reflect.New(elemType).Elem())
+		} else {
+			elem, err := parseListElement(elemType, row, continuationRows)
+			if err != nil {
+				return err
+			}
+			out = reflect.Append(out, elem)
+		}
+		if h.size > 0 && out.Len() >= h.size {
+			break
+		}
+	}
+	v.Set(out)
+	return nil
+}
+
+func setSliceFromValues(slice reflect.Value, elemType reflect.Type, values [][]byte) error {
+	out := reflect.MakeSlice(slice.Type(), 0, len(values))
+	for _, raw := range values {
+		elem := reflect.New(elemType).Elem()
+		if elemType.Kind() == reflect.Interface {
+			parsed, err := parseInterfaceToken(bytes.TrimSpace(raw))
+			if err != nil {
+				return err
+			}
+			out = reflect.Append(out, parsed)
+			continue
+		}
+		val := bytes.TrimSpace(raw)
+		if unq, err := unquoteIfNeeded(val); err == nil {
+			val = unq
+		}
+		if err := setFieldBytes(elem, val); err != nil {
+			return err
+		}
+		out = reflect.Append(out, elem)
+	}
+	slice.Set(out)
+	return nil
+}
+
+func parseInterfaceToken(raw []byte) (reflect.Value, error) {
+	elem := reflect.New(reflect.TypeOf((*interface{})(nil)).Elem()).Elem()
+
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) >= 2 && trimmed[0] == '"' && trimmed[len(trimmed)-1] == '"' {
+		unq, err := unquoteIfNeeded(trimmed)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		elem.Set(reflect.ValueOf(string(unq)))
+		return elem, nil
+	}
+
+	if bytes.Equal(trimmed, []byte("true")) {
+		elem.Set(reflect.ValueOf(true))
+		return elem, nil
+	}
+	if bytes.Equal(trimmed, []byte("false")) {
+		elem.Set(reflect.ValueOf(false))
+		return elem, nil
+	}
+	if i, err := parseIntBytes(trimmed); err == nil {
+		elem.Set(reflect.ValueOf(int(i)))
+		return elem, nil
+	}
+	if f, err := parseFloatBytes(trimmed); err == nil {
+		elem.Set(reflect.ValueOf(f))
+		return elem, nil
+	}
+	elem.Set(reflect.ValueOf(string(trimmed)))
+	return elem, nil
+}
+
+func parseListElement(elemType reflect.Type, row []byte, continuationRows [][]byte) (reflect.Value, error) {
+	elem := reflect.New(elemType).Elem()
+
+	// Nested inline array in list row: [2]: 1,2
+	if key, val, ok := splitObjectLine(row); ok {
+		if _, _, _, isArrayHeader := parseArrayHeaderKey(bytes.TrimSpace(key)); isArrayHeader && elemType.Kind() == reflect.Slice {
+			values, err := splitCSVValues(bytes.TrimSpace(val))
+			if err != nil {
+				return reflect.Value{}, ErrMalformedTOON
+			}
+			if err := setSliceFromValues(elem, elemType.Elem(), values); err != nil {
+				return reflect.Value{}, err
+			}
+			return elem, nil
+		}
+	}
+
+	// []interface{} support for mixed primitive rows.
+	if elemType.Kind() == reflect.Interface {
+		if m, ok := parseSimpleObjectLines(row, continuationRows); ok {
+			elem.Set(reflect.ValueOf(m))
+			return elem, nil
+		}
+		return parseInterfaceToken(bytes.TrimSpace(row))
+	}
+
+	if elemType.Kind() == reflect.Map {
+		if elemType.Key().Kind() == reflect.String && elemType.Elem().Kind() == reflect.Interface {
+			m, ok := parseSimpleObjectLines(row, continuationRows)
+			if !ok {
+				return reflect.Value{}, ErrMalformedTOON
+			}
+			mapVal := reflect.MakeMap(elemType)
+			for k, v := range m {
+				mapVal.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(v))
+			}
+			return mapVal, nil
+		}
+		return reflect.Value{}, ErrInvalidTarget
+	}
+
+	val := bytes.TrimSpace(row)
+	if unq, err := unquoteIfNeeded(val); err == nil {
+		val = unq
+	}
+
+	if err := setFieldBytes(elem, val); err != nil {
+		return reflect.Value{}, err
+	}
+	return elem, nil
+}
+
+func parseSimpleObjectLines(firstRow []byte, continuationRows [][]byte) (map[string]interface{}, bool) {
+	lines := make([][]byte, 0, 1+len(continuationRows))
+	lines = append(lines, bytes.TrimSpace(firstRow))
+	lines = append(lines, continuationRows...)
+	out := make(map[string]interface{}, len(lines))
+	for _, line := range lines {
+		keyRaw, valRaw, ok := splitObjectLine(line)
+		if !ok {
+			return nil, false
+		}
+		key, err := unquoteIfNeeded(bytes.TrimSpace(keyRaw))
+		if err != nil {
+			return nil, false
+		}
+		val, err := parseSimpleInterfaceValue(bytes.TrimSpace(valRaw))
+		if err != nil {
+			return nil, false
+		}
+		out[string(key)] = val
+	}
+	return out, true
+}
+
+func parseSimpleInterfaceValue(raw []byte) (interface{}, error) {
+	v := bytes.TrimSpace(raw)
+	if len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"' {
+		unq, err := unquoteIfNeeded(v)
+		if err != nil {
+			return nil, err
+		}
+		return string(unq), nil
+	}
+	if bytes.Equal(v, []byte("true")) {
+		return true, nil
+	}
+	if bytes.Equal(v, []byte("false")) {
+		return false, nil
+	}
+	if i, err := parseIntBytes(v); err == nil {
+		return int(i), nil
+	}
+	if f, err := parseFloatBytes(v); err == nil {
+		return f, nil
+	}
+	return string(v), nil
+}
+
+func lineIndentWidth(line []byte) int {
+	n := 0
+	for ; n < len(line); n++ {
+		if line[n] != ' ' && line[n] != '\t' {
+			break
+		}
+	}
+	return n
 }
 
 // setFieldBytes converts []byte value and sets it to reflect.Value

@@ -18,6 +18,70 @@ type fixtureBundle struct {
 	} `json:"tests"`
 }
 
+type subsetCase struct {
+	fixtureFile string
+	testName    string
+	mode        string // supported | known_gap
+}
+
+var trackedSubsetCases = []subsetCase{
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses empty nested object header",
+		mode:        "supported",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses objects with primitive values",
+		mode:        "known_gap",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses null values in objects",
+		mode:        "known_gap",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted object value with colon",
+		mode:        "known_gap",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted object value with escaped quotes",
+		mode:        "known_gap",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses quoted key with colon",
+		mode:        "known_gap",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses dotted keys as identifiers",
+		mode:        "known_gap",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "objects.json"),
+		testName:    "parses deeply nested objects with indentation",
+		mode:        "known_gap",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses positive integer",
+		mode:        "known_gap",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses true",
+		mode:        "known_gap",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses quoted string with escaped quotes",
+		mode:        "known_gap",
+	},
+}
+
 // TestSpecFixturesAvailability ensures CI can consume official TOON fixtures.
 // This test intentionally validates fixture plumbing only; behavioral conformance
 // assertions are tracked separately and can be incrementally added.
@@ -73,31 +137,7 @@ func readFixtureBundle(t *testing.T, rel string) fixtureBundle {
 // official fixture inputs. This is intentionally a small, explicit subset that
 // can be expanded as feature parity grows.
 func TestSpecFixturesSupportedSubset(t *testing.T) {
-	type subsetCase struct {
-		fixtureFile string
-		testName    string
-		mode        string // supported | known_gap
-	}
-
-	cases := []subsetCase{
-		{
-			fixtureFile: filepath.Join("decode", "objects.json"),
-			testName:    "parses empty nested object header",
-			mode:        "supported",
-		},
-		{
-			fixtureFile: filepath.Join("decode", "objects.json"),
-			testName:    "parses objects with primitive values",
-			mode:        "known_gap",
-		},
-		{
-			fixtureFile: filepath.Join("decode", "primitives.json"),
-			testName:    "parses positive integer",
-			mode:        "known_gap",
-		},
-	}
-
-	for _, c := range cases {
+	for _, c := range trackedSubsetCases {
 		t.Run(c.testName, func(t *testing.T) {
 			b := readFixtureBundle(t, c.fixtureFile)
 			tc, ok := findFixtureTestByName(b, c.testName)
@@ -119,7 +159,7 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 			case "known_gap":
 				// Keep known gaps explicit and test-visible. A future change that
 				// starts passing these should trigger moving the case to supported.
-				var dst struct {
+				var dst struct { // representative object target for gap tracking
 					ID     int
 					Name   string
 					Active bool
@@ -143,16 +183,29 @@ func TestSpecFixturesSubsetSummary(t *testing.T) {
 
 	encode := readFixtureBundle(t, filepath.Join("encode", "objects.json"))
 	decode := readFixtureBundle(t, filepath.Join("decode", "objects.json"))
+	supported, known := subsetCaseCounters()
 
 	// Keep this as a CI-visible checkpoint to track gradual expansion.
 	t.Logf(
 		"official fixture coverage checkpoint: encode(objects)=%d decode(objects)=%d supported_subset=%d known_gaps=%d",
-		len(encode.Tests), len(decode.Tests), 1, 2,
+		len(encode.Tests), len(decode.Tests), supported, known,
 	)
 
 	if len(encode.Tests) == 0 || len(decode.Tests) == 0 {
 		t.Fatal(fmt.Errorf("unexpected empty official fixture bundle"))
 	}
+}
+
+func subsetCaseCounters() (supported int, knownGaps int) {
+	for _, c := range trackedSubsetCases {
+		switch c.mode {
+		case "supported":
+			supported++
+		case "known_gap":
+			knownGaps++
+		}
+	}
+	return supported, knownGaps
 }
 
 func findFixtureTestByName(b fixtureBundle, name string) (struct {

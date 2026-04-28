@@ -23,7 +23,7 @@ The objective is to evolve coverage transparently without claiming full conforma
 - Known-gap assertions: enabled (explicit unsupported cases are tracked in tests)
 - Tracked subset cases (iteration #18): 87 total
   - supported: 87
-  - known gaps: 0
+  - known gaps: 4
 
 ## Expansion plan
 

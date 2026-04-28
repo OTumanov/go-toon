@@ -550,6 +550,30 @@ var trackedSubsetCases = []subsetCase{
 		mode:        "supported",
 		target:      "struct-empty-key-array",
 	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
+		testName:    "parses root-level primitive array inline",
+		mode:        "known_gap",
+		target:      "root-mixed-any-slice",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
+		testName:    "parses root-level array of arrays",
+		mode:        "known_gap",
+		target:      "root-nested-int-slices",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
+		testName:    "parses root-level array of non-uniform objects in list format",
+		mode:        "known_gap",
+		target:      "root-list-objects",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
+		testName:    "parses quoted key with list array format",
+		mode:        "known_gap",
+		target:      "struct-xitems-array",
+	},
 }
 
 // TestSpecFixturesAvailability ensures CI can consume official TOON fixtures.
@@ -934,6 +958,24 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					}
 					err := Unmarshal([]byte(in), &dst)
 					if err == nil && len(dst.Items) > 0 && dst.Items[0].OrderID != 0 && dst.Items[0].FullName != "" {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "root-mixed-any-slice":
+					var dst []interface{}
+					err, panicked := safeUnmarshal([]byte(in), &dst)
+					if !panicked && err == nil && len(dst) > 0 {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "root-nested-int-slices":
+					var dst [][]int
+					err, panicked := safeUnmarshal([]byte(in), &dst)
+					if !panicked && err == nil && len(dst) > 0 {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "root-list-objects":
+					var dst []map[string]interface{}
+					err, panicked := safeUnmarshal([]byte(in), &dst)
+					if !panicked && err == nil && len(dst) > 0 {
 						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
 					}
 				default:
@@ -1512,6 +1554,17 @@ func assertExpectedEncodedText(t *testing.T, expected, actual string) {
 	if actual != expected {
 		t.Fatalf("expected encoded %q, got %q", expected, actual)
 	}
+}
+
+func safeUnmarshal(data []byte, target interface{}) (err error, panicked bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			panicked = true
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	err = Unmarshal(data, target)
+	return err, false
 }
 
 func findFixtureTestByName(b fixtureBundle, name string) (struct {

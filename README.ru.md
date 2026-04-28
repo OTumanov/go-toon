@@ -116,6 +116,62 @@ _ = dec.Decode(&out)
 
 Если тип поля реализует `Marshaler` / `Unmarshaler`, библиотека автоматически использует эти интерфейсы при кодировании и декодировании.
 
+## Работа с существующими JSON-тегами
+
+В `go-toon` JSON-fallback намеренно не включен по умолчанию. Это сохраняет явное и предсказуемое поведение схемы как для codegen, так и для reflection-пути.
+
+Если ваши модели уже используют `json`-теги, лучше применять один из явных вариантов:
+
+1. Дублировать теги в общих моделях:
+
+```go
+type User struct {
+	ID   int    `json:"id" toon:"id"`
+	Name string `json:"name" toon:"name"`
+}
+```
+
+2. Использовать адаптерный тип для внешних структур, которые нельзя менять:
+
+```go
+type ExternalUser struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+//toon:generate
+type ToonUser struct {
+	ID   int    `toon:"id"`
+	Name string `toon:"name"`
+}
+
+func NewToonUser(v ExternalUser) ToonUser {
+	return ToonUser{ID: v.ID, Name: v.Name}
+}
+```
+
+3. Реализовать кастомные `Marshaler` / `Unmarshaler` для edge-case сценариев:
+
+```go
+type JSONCompatUser struct {
+	ID   int
+	Name string
+}
+
+func (u JSONCompatUser) MarshalTOON() ([]byte, error) {
+	// вручную отображаем поля по правилам вашего compatibility-слоя
+	return []byte("user{id,name}:1,Alice"), nil
+}
+
+func (u *JSONCompatUser) UnmarshalTOON(data []byte) error {
+	// парсим по вашему кастомному контракту совместимости
+	u.ID, u.Name = 1, "Alice"
+	return nil
+}
+```
+
+Такой подход сохраняет преимущества `go-toon` по производительности и исключает неожиданные изменения поведения из-за неявного выбора тегов.
+
 ## Бенчмарки (reflect vs generated)
 
 Числа из текущего README проекта:

@@ -116,6 +116,62 @@ _ = dec.Decode(&out)
 
 If a field type implements `Marshaler` / `Unmarshaler`, it is encoded/decoded through those interfaces automatically.
 
+## Working with existing JSON tags
+
+`go-toon` intentionally does not enable JSON-tag fallback by default. This keeps schema behavior explicit and predictable for generated and reflection-based paths.
+
+If your models already use `json` tags, prefer one of these explicit approaches:
+
+1. Duplicate tags on shared models:
+
+```go
+type User struct {
+	ID   int    `json:"id" toon:"id"`
+	Name string `json:"name" toon:"name"`
+}
+```
+
+2. Use an adapter type for external structs you cannot modify:
+
+```go
+type ExternalUser struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+//toon:generate
+type ToonUser struct {
+	ID   int    `toon:"id"`
+	Name string `toon:"name"`
+}
+
+func NewToonUser(v ExternalUser) ToonUser {
+	return ToonUser{ID: v.ID, Name: v.Name}
+}
+```
+
+3. Implement custom `Marshaler` / `Unmarshaler` for edge cases:
+
+```go
+type JSONCompatUser struct {
+	ID   int
+	Name string
+}
+
+func (u JSONCompatUser) MarshalTOON() ([]byte, error) {
+	// map fields manually the way your compatibility layer requires
+	return []byte("user{id,name}:1,Alice"), nil
+}
+
+func (u *JSONCompatUser) UnmarshalTOON(data []byte) error {
+	// parse according to your custom compatibility contract
+	u.ID, u.Name = 1, "Alice"
+	return nil
+}
+```
+
+This direction preserves `go-toon` performance and avoids surprising behavior changes from implicit tag inference.
+
 ## Benchmarks (reflect vs generated)
 
 Numbers from the current project README:

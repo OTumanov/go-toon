@@ -33,17 +33,17 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses objects with primitive values",
-		mode:        "known_gap",
+		mode:        "supported",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses null values in objects",
-		mode:        "known_gap",
+		mode:        "supported",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses quoted object value with colon",
-		mode:        "known_gap",
+		mode:        "supported",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
@@ -152,7 +152,13 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 
 			switch c.mode {
 			case "supported":
-				var dst struct{}
+				var dst struct {
+					ID     int
+					Name   string
+					Active bool
+					Value  string
+					Note   string
+				}
 				if err := Unmarshal([]byte(in), &dst); err != nil {
 					t.Fatalf("expected supported subset case to decode, got error: %v", err)
 				}

@@ -1,7 +1,9 @@
 package toon
 
 import (
+	"bytes"
 	"reflect"
+	"strconv"
 )
 
 // Unmarshal parses TOON data into v (must be pointer to struct or slice)
@@ -14,10 +16,85 @@ func Unmarshal(data []byte, v interface{}) error {
 	d := newDecoder(data)
 	h, err := d.parseHeader()
 	if err != nil {
+		// Fallback: allow line-based object form ("key: value") for struct targets.
+		// This keeps existing header-based fast path intact while enabling
+		// incremental spec fixture compatibility work.
+		if rv.Elem().Kind() == reflect.Struct {
+			if ferr := unmarshalObjectLines(data, rv.Elem()); ferr == nil {
+				return nil
+			}
+		}
 		return err
 	}
 
 	return d.decodeValue(h, rv.Elem())
+}
+
+func unmarshalObjectLines(data []byte, v reflect.Value) error {
+	info := getStructInfo(v.Type())
+	lines := bytes.Split(data, []byte{'\n'})
+
+	for _, rawLine := range lines {
+		line := bytes.TrimSpace(rawLine)
+		if len(line) == 0 {
+			continue
+		}
+
+		colon := bytes.IndexByte(line, ':')
+		if colon < 0 {
+			return ErrMalformedTOON
+		}
+
+		key := bytes.TrimSpace(line[:colon])
+		val := bytes.TrimSpace(line[colon+1:])
+		if len(key) == 0 {
+			return ErrMalformedTOON
+		}
+
+		// Empty nested object header like "user:" is currently treated as a
+		// structural marker and ignored for struct decoding in this fallback path.
+		if len(val) == 0 {
+			continue
+		}
+
+		idx := info.findFieldIndex(key)
+		if idx < 0 {
+			// Unknown field: ignore for forward compatibility.
+			continue
+		}
+
+		field := v.Field(idx)
+		if !field.CanSet() {
+			continue
+		}
+
+		if bytes.Equal(val, []byte("null")) {
+			field.Set(reflect.Zero(field.Type()))
+			continue
+		}
+
+		parsedVal, err := unquoteIfNeeded(val)
+		if err != nil {
+			return ErrMalformedTOON
+		}
+
+		if err := setFieldBytes(field, parsedVal); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func unquoteIfNeeded(b []byte) ([]byte, error) {
+	if len(b) >= 2 && b[0] == '"' && b[len(b)-1] == '"' {
+		s, err := strconv.Unquote(string(b))
+		if err != nil {
+			return nil, err
+		}
+		return []byte(s), nil
+	}
+	return b, nil
 }
 
 // decoder scans TOON v3.0 byte stream

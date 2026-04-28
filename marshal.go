@@ -113,6 +113,22 @@ func encodeSpecObjectInto(buf *[]byte, v reflect.Value, indent int) error {
 		*buf = append(*buf, key...)
 		*buf = append(*buf, ':')
 
+		// Nested structs use indentation-aware multiline encoding.
+		if field.Kind() == reflect.Struct {
+			*buf = append(*buf, '\n')
+			if err := encodeSpecObjectInto(buf, field, indent+2); err != nil {
+				return err
+			}
+			continue
+		}
+		if field.Kind() == reflect.Ptr && !field.IsNil() && field.Elem().Kind() == reflect.Struct {
+			*buf = append(*buf, '\n')
+			if err := encodeSpecObjectInto(buf, field.Elem(), indent+2); err != nil {
+				return err
+			}
+			continue
+		}
+
 		encoded, nested, err := encodeSpecValue(field)
 		if err != nil {
 			return err
@@ -138,12 +154,6 @@ func encodeSpecValue(v reflect.Value) ([]byte, bool, error) {
 			return []byte("null"), false, nil
 		}
 		return encodeSpecValue(v.Elem())
-	case reflect.Struct:
-		nested := make([]byte, 0, 64)
-		if err := encodeSpecObjectInto(&nested, v, 1); err != nil {
-			return nil, false, err
-		}
-		return nested, true, nil
 	}
 
 	switch v.Kind() {

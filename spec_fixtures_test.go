@@ -445,73 +445,73 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses string arrays inline",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-tags-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses number arrays inline",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-tags-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses empty arrays",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses single-item array with empty string",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses multi-item array with empty string",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses whitespace-only strings in arrays",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses strings with delimiters in arrays",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses strings that look like primitives when quoted",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses strings with structural tokens in arrays",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-items-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses quoted key with inline array",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-mykey-int-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
 		testName:    "parses quoted key with empty array",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-xcustom-string-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
 		testName:    "parses tabular arrays of uniform objects",
-		mode:        "supported",
+		mode:        "known_gap",
 		target:      "struct-items-array",
 	},
 }
@@ -579,7 +579,7 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 				t.Fatalf("fixture test not found: %s (%s)", c.testName, c.fixtureFile)
 			}
 
-			isEncodeCase := strings.Contains(c.fixtureFile, string(filepath.Separator)+"encode"+string(filepath.Separator))
+			isEncodeCase := strings.HasPrefix(c.fixtureFile, "encode"+string(filepath.Separator))
 
 			switch c.mode {
 			case "supported":
@@ -748,6 +748,14 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					if err == nil && len(dst.Tags) > 0 {
 						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
 					}
+				case "struct-items-string-array":
+					var dst struct {
+						Items []string `toon:"items"`
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && len(dst.Items) > 0 {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
 				case "struct-items-array":
 					var dst struct {
 						Items []struct {
@@ -758,6 +766,22 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					}
 					err := Unmarshal([]byte(in), &dst)
 					if err == nil && len(dst.Items) > 0 {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "struct-mykey-int-array":
+					var dst struct {
+						MyKey []int `toon:"my-key"`
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && len(dst.MyKey) > 0 {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "struct-xcustom-string-array":
+					var dst struct {
+						XCustom []string `toon:"x-custom"`
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && len(dst.XCustom) > 0 {
 						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
 					}
 				default:

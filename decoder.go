@@ -40,13 +40,15 @@ func unmarshalObjectLines(data []byte, v reflect.Value) error {
 			continue
 		}
 
-		colon := bytes.IndexByte(line, ':')
-		if colon < 0 {
+		keyRaw, valRaw, ok := splitObjectLine(line)
+		if !ok {
 			return ErrMalformedTOON
 		}
-
-		key := bytes.TrimSpace(line[:colon])
-		val := bytes.TrimSpace(line[colon+1:])
+		key, err := unquoteIfNeeded(bytes.TrimSpace(keyRaw))
+		if err != nil {
+			return ErrMalformedTOON
+		}
+		val := bytes.TrimSpace(valRaw)
 		if len(key) == 0 {
 			return ErrMalformedTOON
 		}
@@ -84,6 +86,29 @@ func unmarshalObjectLines(data []byte, v reflect.Value) error {
 	}
 
 	return nil
+}
+
+func splitObjectLine(line []byte) (key []byte, val []byte, ok bool) {
+	inQuotes := false
+	escape := false
+	for i, b := range line {
+		if escape {
+			escape = false
+			continue
+		}
+		if b == '\\' && inQuotes {
+			escape = true
+			continue
+		}
+		if b == '"' {
+			inQuotes = !inQuotes
+			continue
+		}
+		if b == ':' && !inQuotes {
+			return line[:i], line[i+1:], true
+		}
+	}
+	return nil, nil, false
 }
 
 func unquoteIfNeeded(b []byte) ([]byte, error) {

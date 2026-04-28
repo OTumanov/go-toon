@@ -48,12 +48,12 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses quoted object value with escaped quotes",
-		mode:        "known_gap",
+		mode:        "supported",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses quoted key with colon",
-		mode:        "known_gap",
+		mode:        "supported",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
@@ -158,6 +158,8 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					Active bool
 					Value  string
 					Note   string
+					OrderID int `toon:"order:id"`
+					Text    string
 				}
 				if err := Unmarshal([]byte(in), &dst); err != nil {
 					t.Fatalf("expected supported subset case to decode, got error: %v", err)

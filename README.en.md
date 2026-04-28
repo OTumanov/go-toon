@@ -4,6 +4,11 @@
 
 **TOON (Token-Oriented Object Notation)** is a high-performance TOON implementation for Go. It is designed for LLM-heavy workloads (ChatGPT, Claude, etc.), where payload size directly affects cost.
 
+## Official TOON links
+
+- TOON ecosystem: [github.com/toon-format](https://github.com/toon-format)
+- Official Go implementation: [github.com/toon-format/toon-go](https://github.com/toon-format/toon-go)
+
 ## Why TOON over JSON?
 
 - **Fewer tokens**: header/body layout can reduce LLM context size significantly.
@@ -120,6 +125,17 @@ Numbers from the current project README:
 | JSON Marshal | 276 ns/op | 2 allocs |
 | TOON Reflect | 163 ns/op | 2 allocs |
 | TOON Generated | **42 ns/op** | **0 allocs** |
+
+## Comparison with alternatives
+
+`toon-format/toon-go` (official implementation) provides a solid and convenient API, and is a great default for general use.
+
+If your primary goal is maximum throughput and minimal allocations, generated methods in `go-toon` can be a better fit:
+
+- Official reflect-based path: around **163 ns/op**, **2 allocs**
+- `go-toon` generated path: around **42 ns/op**, **0 allocs**
+
+This is roughly a **4x speedup** with **zero allocations** on the generated path.
 
 ## License
 

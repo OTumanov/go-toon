@@ -514,6 +514,42 @@ var trackedSubsetCases = []subsetCase{
 		mode:        "supported",
 		target:      "struct-items-array",
 	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
+		testName:    "parses nulls and quoted values in tabular rows",
+		mode:        "known_gap",
+		target:      "struct-items-id-value-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
+		testName:    "parses quoted colon in tabular row as data",
+		mode:        "known_gap",
+		target:      "struct-items-note-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
+		testName:    "parses quoted header keys in tabular arrays",
+		mode:        "known_gap",
+		target:      "struct-items-order-full-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
+		testName:    "treats unquoted colon as terminator for tabular rows and start of key-value pair",
+		mode:        "supported",
+		target:      "struct-items-count",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
+		testName:    "parses quoted key with tabular array format",
+		mode:        "supported",
+		target:      "struct-xitems-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
+		testName:    "parses quoted empty string key with tabular array format",
+		mode:        "known_gap",
+		target:      "struct-empty-key-array",
+	},
 }
 
 // TestSpecFixturesAvailability ensures CI can consume official TOON fixtures.
@@ -689,6 +725,72 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 						t.Fatalf("expected tabular object array decode, got error: %v", err)
 					}
 					assertExpectedItemsObjectArrayDecode(t, tc.Expected, dst)
+				case "struct-items-id-value-array":
+					type item struct {
+						ID    int     `toon:"id"`
+						Value *string `toon:"value"`
+					}
+					type wrap struct {
+						Items []item `toon:"items"`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected tabular id/value decode, got error: %v", err)
+					}
+					assertExpectedItemsIDValueArrayDecode(t, tc.Expected, dst)
+				case "struct-items-note-array":
+					type item struct {
+						ID   int    `toon:"id"`
+						Note string `toon:"note"`
+					}
+					type wrap struct {
+						Items []item `toon:"items"`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected tabular note decode, got error: %v", err)
+					}
+					assertExpectedItemsNoteArrayDecode(t, tc.Expected, dst)
+				case "struct-items-order-full-array":
+					type item struct {
+						OrderID  int    `toon:"order:id"`
+						FullName string `toon:"full name"`
+					}
+					type wrap struct {
+						Items []item `toon:"items"`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected quoted-header tabular decode, got error: %v", err)
+					}
+					assertExpectedItemsOrderFullArrayDecode(t, tc.Expected, dst)
+				case "struct-items-count":
+					type item struct {
+						ID   int    `toon:"id"`
+						Name string `toon:"name"`
+					}
+					type wrap struct {
+						Items []item `toon:"items"`
+						Count int    `toon:"count"`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected tabular+count decode, got error: %v", err)
+					}
+					assertExpectedItemsCountDecode(t, tc.Expected, dst)
+				case "struct-xitems-array":
+					type item struct {
+						ID   int    `toon:"id"`
+						Name string `toon:"name"`
+					}
+					type wrap struct {
+						XItems []item `toon:"x-items"`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected quoted-key tabular decode, got error: %v", err)
+					}
+					assertExpectedXItemsArrayDecode(t, tc.Expected, dst)
 				case "struct-items-string-array":
 					type wrap struct {
 						Items []string `toon:"items"`
@@ -782,6 +884,55 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					}
 					err := Unmarshal([]byte(in), &dst)
 					if err == nil && len(dst.XCustom) > 0 {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "struct-empty-key-array":
+					type item struct {
+						ID   int    `toon:"id"`
+						Name string `toon:"name"`
+					}
+					var dst struct {
+						NoField []item
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && len(dst.NoField) > 0 {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "struct-items-id-value-array":
+					type item struct {
+						ID    int     `toon:"id"`
+						Value *string `toon:"value"`
+					}
+					var dst struct {
+						Items []item `toon:"items"`
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && len(dst.Items) > 0 && dst.Items[0].Value != nil {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "struct-items-note-array":
+					type item struct {
+						ID   int    `toon:"id"`
+						Note string `toon:"note"`
+					}
+					var dst struct {
+						Items []item `toon:"items"`
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && len(dst.Items) == 2 &&
+						dst.Items[0].Note == "a:b" && dst.Items[1].Note == "c:d" {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
+				case "struct-items-order-full-array":
+					type item struct {
+						OrderID  int    `toon:"order:id"`
+						FullName string `toon:"full name"`
+					}
+					var dst struct {
+						Items []item `toon:"items"`
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && len(dst.Items) > 0 && dst.Items[0].OrderID != 0 && dst.Items[0].FullName != "" {
 						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
 					}
 				default:
@@ -1234,6 +1385,104 @@ func assertExpectedItemsObjectArrayDecode(t *testing.T, raw json.RawMessage, act
 			t.Fatalf("row %d expected sku=%q qty=%d price=%v got sku=%q qty=%d price=%v",
 				i, sku, qty, price, gotSKU, gotQty, gotPrice)
 		}
+	}
+}
+
+func assertExpectedItemsIDValueArrayDecode(t *testing.T, raw json.RawMessage, actual interface{}) {
+	t.Helper()
+	exp := map[string][]map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &exp); err != nil {
+		t.Fatalf("failed to parse expected id/value array: %v", err)
+	}
+	rv := reflect.ValueOf(actual)
+	items := rv.FieldByName("Items")
+	if items.Len() != len(exp["items"]) {
+		t.Fatalf("expected %d rows, got %d", len(exp["items"]), items.Len())
+	}
+	for i := range exp["items"] {
+		row := items.Index(i)
+		gotID := int(row.FieldByName("ID").Int())
+		var expID int
+		_ = json.Unmarshal(exp["items"][i]["id"], &expID)
+		if gotID != expID {
+			t.Fatalf("row %d id mismatch: expected %d got %d", i, expID, gotID)
+		}
+		gotValField := row.FieldByName("Value")
+		expRaw := exp["items"][i]["value"]
+		if string(expRaw) == "null" {
+			if !gotValField.IsNil() {
+				t.Fatalf("row %d expected nil value", i)
+			}
+		} else {
+			var expVal string
+			_ = json.Unmarshal(expRaw, &expVal)
+			if gotValField.IsNil() || gotValField.Elem().String() != expVal {
+				t.Fatalf("row %d value mismatch", i)
+			}
+		}
+	}
+}
+
+func assertExpectedItemsNoteArrayDecode(t *testing.T, raw json.RawMessage, actual interface{}) {
+	t.Helper()
+	exp := map[string][]map[string]json.RawMessage{}
+	_ = json.Unmarshal(raw, &exp)
+	rv := reflect.ValueOf(actual)
+	items := rv.FieldByName("Items")
+	if items.Len() != len(exp["items"]) {
+		t.Fatalf("expected %d rows, got %d", len(exp["items"]), items.Len())
+	}
+	for i := range exp["items"] {
+		row := items.Index(i)
+		var expNote string
+		_ = json.Unmarshal(exp["items"][i]["note"], &expNote)
+		if row.FieldByName("Note").String() != expNote {
+			t.Fatalf("row %d note mismatch", i)
+		}
+	}
+}
+
+func assertExpectedItemsOrderFullArrayDecode(t *testing.T, raw json.RawMessage, actual interface{}) {
+	t.Helper()
+	exp := map[string][]map[string]json.RawMessage{}
+	_ = json.Unmarshal(raw, &exp)
+	rv := reflect.ValueOf(actual)
+	items := rv.FieldByName("Items")
+	if items.Len() != len(exp["items"]) {
+		t.Fatalf("expected %d rows, got %d", len(exp["items"]), items.Len())
+	}
+	for i := range exp["items"] {
+		row := items.Index(i)
+		var expOrder int
+		var expName string
+		_ = json.Unmarshal(exp["items"][i]["order:id"], &expOrder)
+		_ = json.Unmarshal(exp["items"][i]["full name"], &expName)
+		if int(row.FieldByName("OrderID").Int()) != expOrder || row.FieldByName("FullName").String() != expName {
+			t.Fatalf("row %d quoted-header mismatch", i)
+		}
+	}
+}
+
+func assertExpectedItemsCountDecode(t *testing.T, raw json.RawMessage, actual interface{}) {
+	t.Helper()
+	exp := map[string]json.RawMessage{}
+	_ = json.Unmarshal(raw, &exp)
+	rv := reflect.ValueOf(actual)
+	var expCount int
+	_ = json.Unmarshal(exp["count"], &expCount)
+	if int(rv.FieldByName("Count").Int()) != expCount {
+		t.Fatalf("count mismatch")
+	}
+}
+
+func assertExpectedXItemsArrayDecode(t *testing.T, raw json.RawMessage, actual interface{}) {
+	t.Helper()
+	exp := map[string][]map[string]json.RawMessage{}
+	_ = json.Unmarshal(raw, &exp)
+	rv := reflect.ValueOf(actual)
+	items := rv.FieldByName("XItems")
+	if items.Len() != len(exp["x-items"]) {
+		t.Fatalf("expected %d rows, got %d", len(exp["x-items"]), items.Len())
 	}
 }
 

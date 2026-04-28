@@ -17,3 +17,4 @@ Official TOON resources:
 - TOON ecosystem: [github.com/toon-format](https://github.com/toon-format)
 - Official Go implementation: [github.com/toon-format/toon-go](https://github.com/toon-format/toon-go)
 - Official spec tests: [github.com/toon-format/spec/tree/main/tests](https://github.com/toon-format/spec/tree/main/tests)
+- Compatibility tracker: [SPEC_COMPATIBILITY.md](SPEC_COMPATIBILITY.md)

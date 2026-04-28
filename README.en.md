@@ -21,6 +21,8 @@
 Current status: fixture ingestion is automated; full behavioral conformance
 assertions are being implemented incrementally.
 
+See progress tracker: [`SPEC_COMPATIBILITY.md`](SPEC_COMPATIBILITY.md)
+
 ## Why TOON over JSON?
 
 - **Fewer tokens**: header/body layout can reduce LLM context size significantly.

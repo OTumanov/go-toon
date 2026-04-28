@@ -25,7 +25,7 @@ jobs:
           repository: toon-format/spec
           path: .tmp/toon-spec
 
-      - name: Validate fixture integration
+      - name: Run spec fixture tests
         env:
           TOON_SPEC_PATH: ${{ github.workspace }}/.tmp/toon-spec
-        run: go test ./... -run TestSpecFixturesAvailability -count=1
+        run: go test ./... -run TestSpecFixtures -count=1 -v

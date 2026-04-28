@@ -4,6 +4,7 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -59,6 +60,128 @@ func marshalRootPrimitive(v reflect.Value) ([]byte, error) {
 	default:
 		return nil, ErrInvalidTarget
 	}
+}
+
+// marshalObjectLinesForSpec encodes struct fields into line-based object format:
+// key: value
+// This helper is used for incremental spec-fixture conformance work.
+func marshalObjectLinesForSpec(v interface{}) ([]byte, error) {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return nil, ErrInvalidTarget
+	}
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return nil, ErrInvalidTarget
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return nil, ErrInvalidTarget
+	}
+
+	t := rv.Type()
+	info := getStructInfo(t)
+	buf := make([]byte, 0, 128)
+
+	for i, f := range info.fields {
+		field := rv.Field(f.index)
+		if i > 0 {
+			buf = append(buf, '\n')
+		}
+
+		key := f.name
+		if needsQuotedKey(key) {
+			key = `"` + escapeString(key) + `"`
+		}
+		buf = append(buf, key...)
+		buf = append(buf, ':', ' ')
+
+		encoded, err := encodeSpecValue(field)
+		if err != nil {
+			return nil, err
+		}
+		buf = append(buf, encoded...)
+	}
+
+	return buf, nil
+}
+
+func encodeSpecValue(v reflect.Value) ([]byte, error) {
+	switch v.Kind() {
+	case reflect.String:
+		s := v.String()
+		if needsQuotedStringValue(s) {
+			return []byte(`"` + escapeString(s) + `"`), nil
+		}
+		return []byte(s), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return []byte(strconv.FormatInt(v.Int(), 10)), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return []byte(strconv.FormatUint(v.Uint(), 10)), nil
+	case reflect.Float32, reflect.Float64:
+		return []byte(strconv.FormatFloat(v.Float(), 'f', -1, 64)), nil
+	case reflect.Bool:
+		if v.Bool() {
+			return []byte("true"), nil
+		}
+		return []byte("false"), nil
+	default:
+		return nil, ErrInvalidTarget
+	}
+}
+
+func needsQuotedKey(s string) bool {
+	if s == "" {
+		return true
+	}
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case ':', ',', '[', ']', '{', '}', '"':
+			return true
+		}
+	}
+	if strings.HasPrefix(s, "-") {
+		return true
+	}
+	if strings.TrimSpace(s) != s {
+		return true
+	}
+	if strings.Contains(s, " ") {
+		return true
+	}
+	return false
+}
+
+func needsQuotedStringValue(s string) bool {
+	if s == "" {
+		return true
+	}
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case ':', ',', '\n', '\t', '\r', '\\', '"':
+			return true
+		}
+	}
+	if strings.TrimSpace(s) != s {
+		return true
+	}
+	if s == "true" || s == "false" || s == "null" {
+		return true
+	}
+	if _, err := strconv.ParseFloat(s, 64); err == nil {
+		return true
+	}
+	return false
+}
+
+func escapeString(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	s = strings.ReplaceAll(s, "\n", `\n`)
+	s = strings.ReplaceAll(s, "\t", `\t`)
+	s = strings.ReplaceAll(s, "\r", `\r`)
+	return s
 }
 
 // MarshalTo writes TOON encoding to w

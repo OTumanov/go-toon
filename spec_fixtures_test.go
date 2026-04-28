@@ -270,32 +270,32 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
 		testName:    "quotes string value with colon",
-		mode:        "known_gap",
-		target:      "struct-encode",
+		mode:        "supported",
+		target:      "struct-encode-lines",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
 		testName:    "quotes string value with comma",
-		mode:        "known_gap",
-		target:      "struct-encode",
+		mode:        "supported",
+		target:      "struct-encode-lines",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
 		testName:    "quotes string value with embedded quotes",
-		mode:        "known_gap",
-		target:      "struct-encode",
+		mode:        "supported",
+		target:      "struct-encode-lines",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
 		testName:    "quotes key with colon",
-		mode:        "known_gap",
-		target:      "struct-encode",
+		mode:        "supported",
+		target:      "struct-encode-lines",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
 		testName:    "quotes key with spaces",
-		mode:        "known_gap",
-		target:      "struct-encode",
+		mode:        "supported",
+		target:      "struct-encode-lines",
 	},
 	{
 		fixtureFile: filepath.Join("encode", "objects.json"),
@@ -524,6 +524,61 @@ func runSupportedEncodeCase(t *testing.T, target string, tc struct {
 	expected := decodeExpectedEncodedText(t, tc.Expected)
 
 	switch target {
+	case "struct-encode-lines":
+		switch tc.Name {
+		case "quotes string value with colon":
+			type s struct {
+				Note string `toon:"note"`
+			}
+			in := s{Note: "a:b"}
+			out, err := marshalObjectLinesForSpec(in)
+			if err != nil {
+				t.Fatalf("expected object-line encode, got error: %v", err)
+			}
+			assertExpectedEncodedText(t, expected, string(out))
+		case "quotes string value with comma":
+			type s struct {
+				Note string `toon:"note"`
+			}
+			in := s{Note: "a,b"}
+			out, err := marshalObjectLinesForSpec(in)
+			if err != nil {
+				t.Fatalf("expected object-line encode, got error: %v", err)
+			}
+			assertExpectedEncodedText(t, expected, string(out))
+		case "quotes string value with embedded quotes":
+			type s struct {
+				Text string `toon:"text"`
+			}
+			in := s{Text: `say "hello"`}
+			out, err := marshalObjectLinesForSpec(in)
+			if err != nil {
+				t.Fatalf("expected object-line encode, got error: %v", err)
+			}
+			assertExpectedEncodedText(t, expected, string(out))
+		case "quotes key with colon":
+			type s struct {
+				OrderID int `toon:"order:id"`
+			}
+			in := s{OrderID: 7}
+			out, err := marshalObjectLinesForSpec(in)
+			if err != nil {
+				t.Fatalf("expected object-line encode, got error: %v", err)
+			}
+			assertExpectedEncodedText(t, expected, string(out))
+		case "quotes key with spaces":
+			type s struct {
+				FullName string `toon:"full name"`
+			}
+			in := s{FullName: "Ada"}
+			out, err := marshalObjectLinesForSpec(in)
+			if err != nil {
+				t.Fatalf("expected object-line encode, got error: %v", err)
+			}
+			assertExpectedEncodedText(t, expected, string(out))
+		default:
+			t.Fatalf("unsupported struct-encode-lines fixture: %s", tc.Name)
+		}
 	case "string":
 		var in string
 		if err := json.Unmarshal(tc.Input, &in); err != nil {

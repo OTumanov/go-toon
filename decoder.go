@@ -70,11 +70,19 @@ func unmarshalRootPrimitive(data []byte, v reflect.Value) error {
 func unmarshalObjectLines(data []byte, v reflect.Value) error {
 	info := getStructInfo(v.Type())
 	lines := bytes.Split(data, []byte{'\n'})
+	var headerPath [][]byte
+	var headerIndents []int
 
 	for _, rawLine := range lines {
+		indent := leadingSpaces(rawLine)
 		line := bytes.TrimSpace(rawLine)
 		if len(line) == 0 {
 			continue
+		}
+
+		for len(headerIndents) > 0 && indent < headerIndents[len(headerIndents)-1] {
+			headerIndents = headerIndents[:len(headerIndents)-1]
+			headerPath = headerPath[:len(headerPath)-1]
 		}
 
 		keyRaw, valRaw, ok := splitObjectLine(line)
@@ -90,39 +98,78 @@ func unmarshalObjectLines(data []byte, v reflect.Value) error {
 			return ErrMalformedTOON
 		}
 
-		// Empty nested object header like "user:" is currently treated as a
-		// structural marker and ignored for struct decoding in this fallback path.
+		// Empty object header line. Keep path context for nested lines.
 		if len(val) == 0 {
+			// Same-level header should replace previous node on that level.
+			if len(headerIndents) > 0 && indent == headerIndents[len(headerIndents)-1] {
+				headerIndents = headerIndents[:len(headerIndents)-1]
+				headerPath = headerPath[:len(headerPath)-1]
+			}
+			headerIndents = append(headerIndents, indent)
+			keyCopy := append([]byte(nil), key...)
+			headerPath = append(headerPath, keyCopy)
 			continue
 		}
+		fullPath := make([][]byte, 0, len(headerPath)+1)
+		fullPath = append(fullPath, headerPath...)
+		fullPath = append(fullPath, key)
 
-		idx := info.findFieldIndex(key)
-		if idx < 0 {
-			// Unknown field: ignore for forward compatibility.
-			continue
-		}
-
-		field := v.Field(idx)
-		if !field.CanSet() {
-			continue
-		}
-
-		if bytes.Equal(val, []byte("null")) {
-			field.Set(reflect.Zero(field.Type()))
-			continue
-		}
-
-		parsedVal, err := unquoteIfNeeded(val)
-		if err != nil {
-			return ErrMalformedTOON
-		}
-
-		if err := setFieldBytes(field, parsedVal); err != nil {
+		if err := setStructFieldByPath(v, info, fullPath, val); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func leadingSpaces(b []byte) int {
+	n := 0
+	for n < len(b) && b[n] == ' ' {
+		n++
+	}
+	return n
+}
+
+func setStructFieldByPath(root reflect.Value, rootInfo *structInfo, path [][]byte, rawVal []byte) error {
+	current := root
+	currentInfo := rootInfo
+
+	for i := 0; i < len(path)-1; i++ {
+		idx := currentInfo.findFieldIndex(path[i])
+		if idx < 0 {
+			return nil
+		}
+		field := current.Field(idx)
+		if !field.CanSet() {
+			return nil
+		}
+		if field.Kind() != reflect.Struct {
+			return nil
+		}
+		current = field
+		currentInfo = getStructInfo(current.Type())
+	}
+
+	last := path[len(path)-1]
+	idx := currentInfo.findFieldIndex(last)
+	if idx < 0 {
+		return nil
+	}
+	field := current.Field(idx)
+	if !field.CanSet() {
+		return nil
+	}
+
+	if bytes.Equal(rawVal, []byte("null")) {
+		field.Set(reflect.Zero(field.Type()))
+		return nil
+	}
+
+	parsedVal, err := unquoteIfNeeded(rawVal)
+	if err != nil {
+		return ErrMalformedTOON
+	}
+	return setFieldBytes(field, parsedVal)
 }
 
 func splitObjectLine(line []byte) (key []byte, val []byte, ok bool) {

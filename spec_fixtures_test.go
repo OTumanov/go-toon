@@ -65,13 +65,13 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses dotted keys as identifiers",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses deeply nested objects with indentation",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct",
 	},
 	{
@@ -174,6 +174,12 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 						Note    string
 						OrderID int `toon:"order:id"`
 						Text    string
+						UserName string `toon:"user.name"`
+						A        struct {
+							B struct {
+								C string `toon:"c"`
+							} `toon:"b"`
+						} `toon:"a"`
 					}
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected supported subset case to decode, got error: %v", err)

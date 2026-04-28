@@ -22,8 +22,8 @@ The objective is to evolve coverage transparently without claiming full conforma
 - Behavioral subset checks: enabled (initial decode subset)
 - Known-gap assertions: enabled (explicit unsupported cases are tracked in tests)
 - Tracked subset cases (iteration #18): 87 total
-  - supported: 83
-  - known gaps: 4
+  - supported: 86
+  - known gaps: 1
 
 ## Expansion plan
 

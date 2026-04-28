@@ -21,6 +21,15 @@ func Unmarshal(data []byte, v interface{}) error {
 		}
 	}
 
+	// For struct targets, prefer object-line parsing when payload looks like:
+	// key: value
+	// This avoids misclassifying quoted keys (e.g. "order:id": 7) as TOON headers.
+	if rv.Elem().Kind() == reflect.Struct && looksLikeObjectLines(data) {
+		if err := unmarshalObjectLines(data, rv.Elem()); err == nil {
+			return nil
+		}
+	}
+
 	d := newDecoder(data)
 	h, err := d.parseHeader()
 	if err != nil {
@@ -45,6 +54,37 @@ func Unmarshal(data []byte, v interface{}) error {
 	}
 
 	return d.decodeValue(h, rv.Elem())
+}
+
+func looksLikeObjectLines(data []byte) bool {
+	lines := bytes.Split(data, []byte{'\n'})
+	for _, raw := range lines {
+		line := bytes.TrimSpace(raw)
+		if len(line) == 0 {
+			continue
+		}
+
+		keyRaw, _, ok := splitObjectLine(line)
+		if !ok {
+			return false
+		}
+		key := bytes.TrimSpace(keyRaw)
+		if len(key) == 0 {
+			return false
+		}
+
+		// Quoted keys are object-line forms.
+		if key[0] == '"' {
+			return true
+		}
+
+		// Classic TOON headers have structural markers in key token.
+		if bytes.ContainsRune(key, '{') || bytes.ContainsRune(key, '[') {
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 func supportsPrimitiveRoot(k reflect.Kind) bool {
@@ -558,13 +598,21 @@ func (d *decoder) parseFields() ([][]byte, error) {
 		switch b {
 		case Separator:
 			if d.pos-1 > start {
-				fields = append(fields, d.data[start:d.pos-1])
+				f := bytes.TrimSpace(d.data[start : d.pos-1])
+				if unq, err := unquoteIfNeeded(f); err == nil {
+					f = unq
+				}
+				fields = append(fields, f)
 			}
 			start = d.pos
 
 		case BlockEnd:
 			if d.pos-1 > start {
-				fields = append(fields, d.data[start:d.pos-1])
+				f := bytes.TrimSpace(d.data[start : d.pos-1])
+				if unq, err := unquoteIfNeeded(f); err == nil {
+					f = unq
+				}
+				fields = append(fields, f)
 			}
 			return fields, nil
 
@@ -599,33 +647,33 @@ func (d *decoder) decodeStruct(h *header, v reflect.Value) error {
 		fieldIdx[i] = info.findFieldIndex(name)
 	}
 
-	// Parse CSV values after header
-	for _, idx := range fieldIdx {
-		d.skipWhitespace()
-
-		// Read value until separator or end
-		start := d.pos
-		for {
-			b, ok := d.peek()
-			if !ok || b == Separator || b == '\n' {
-				break
-			}
-			d.pos++
+	// Parse one CSV row after header (quote-aware split)
+	d.skipWhitespace()
+	start := d.pos
+	for {
+		b, ok := d.peek()
+		if !ok || b == '\n' || b == '\r' {
+			break
 		}
+		d.pos++
+	}
+	row := d.data[start:d.pos]
+	values, err := splitCSVValues(row)
+	if err != nil {
+		return ErrMalformedTOON
+	}
 
-		value := d.data[start:d.pos]
-
-		// Skip separator
-		if b, ok := d.peek(); ok && b == Separator {
-			d.pos++
+	for i, idx := range fieldIdx {
+		if i >= len(values) {
+			break
 		}
-
-		// Skip unknown fields
 		if idx < 0 {
 			continue
 		}
-
-		// Set field value
+		value := bytes.TrimSpace(values[i])
+		if unq, err := unquoteIfNeeded(value); err == nil {
+			value = unq
+		}
 		field := v.Field(idx)
 		if err := setFieldBytes(field, value); err != nil {
 			return err
@@ -689,6 +737,19 @@ func (d *decoder) decodeSlice(h *header, v reflect.Value) error {
 
 // setFieldBytes converts []byte value and sets it to reflect.Value
 func setFieldBytes(v reflect.Value, b []byte) error {
+	if v.Kind() == reflect.Ptr {
+		if bytes.Equal(b, []byte("null")) {
+			v.Set(reflect.Zero(v.Type()))
+			return nil
+		}
+		elem := reflect.New(v.Type().Elem())
+		if err := setFieldBytes(elem.Elem(), b); err != nil {
+			return err
+		}
+		v.Set(elem)
+		return nil
+	}
+
 	// Check for custom Unmarshaler interface
 	if v.CanAddr() {
 		if m, ok := v.Addr().Interface().(Unmarshaler); ok {

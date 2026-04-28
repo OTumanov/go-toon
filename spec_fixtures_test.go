@@ -517,19 +517,19 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
 		testName:    "parses nulls and quoted values in tabular rows",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-id-value-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
 		testName:    "parses quoted colon in tabular row as data",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-note-array",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
 		testName:    "parses quoted header keys in tabular arrays",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-items-order-full-array",
 	},
 	{

@@ -164,6 +164,18 @@ func unmarshalObjectLines(data []byte, v reflect.Value) error {
 				continue
 			}
 
+			// List-style rows follow (`- key: value`) for object arrays.
+			if len(val) == 0 && size > 0 {
+				listRows, consumed := collectListRows(lines, i+1, size)
+				if len(listRows) == size {
+					i += consumed
+					if err := setStructListArrayByPath(v, info, fullPath, listRows); err != nil {
+						return err
+					}
+					continue
+				}
+			}
+
 			// Inline primitive arrays in object context.
 			if err := setStructInlineArrayByPath(v, info, fullPath, val, size); err != nil {
 				return err
@@ -339,6 +351,70 @@ func setStructTabularArrayByPath(root reflect.Value, rootInfo *structInfo, path 
 	return nil
 }
 
+func setStructListArrayByPath(root reflect.Value, rootInfo *structInfo, path [][]byte, rows [][]byte) error {
+	current := root
+	currentInfo := rootInfo
+	for i := 0; i < len(path)-1; i++ {
+		idx := currentInfo.findFieldIndex(path[i])
+		if idx < 0 {
+			return nil
+		}
+		field := current.Field(idx)
+		if !field.CanSet() || field.Kind() != reflect.Struct {
+			return nil
+		}
+		current = field
+		currentInfo = getStructInfo(current.Type())
+	}
+
+	last := path[len(path)-1]
+	idx := currentInfo.findFieldIndex(last)
+	if idx < 0 {
+		return nil
+	}
+	field := current.Field(idx)
+	if !field.CanSet() || field.Kind() != reflect.Slice {
+		return nil
+	}
+
+	elemType := field.Type().Elem()
+	if elemType.Kind() != reflect.Struct {
+		return nil
+	}
+
+	out := reflect.MakeSlice(field.Type(), 0, len(rows))
+	for _, row := range rows {
+		elem := reflect.New(elemType).Elem()
+		keyRaw, valRaw, ok := splitObjectLine(row)
+		if !ok {
+			return ErrMalformedTOON
+		}
+		key, err := unquoteIfNeeded(bytes.TrimSpace(keyRaw))
+		if err != nil {
+			return ErrMalformedTOON
+		}
+		val := bytes.TrimSpace(valRaw)
+		if unq, err := unquoteIfNeeded(val); err == nil {
+			val = unq
+		}
+
+		elemInfo := getStructInfo(elemType)
+		fieldIdx := elemInfo.findFieldIndex(key)
+		if fieldIdx < 0 {
+			out = reflect.Append(out, elem)
+			continue
+		}
+		target := elem.Field(fieldIdx)
+		if err := setFieldBytes(target, val); err != nil {
+			return err
+		}
+		out = reflect.Append(out, elem)
+	}
+
+	field.Set(out)
+	return nil
+}
+
 func collectArrayRows(lines [][]byte, start, size int) (rows [][]byte, consumed int) {
 	if size <= 0 {
 		return nil, 0
@@ -351,6 +427,24 @@ func collectArrayRows(lines [][]byte, start, size int) (rows [][]byte, consumed 
 			continue
 		}
 		rows = append(rows, line)
+		consumed++
+	}
+	return rows, consumed
+}
+
+func collectListRows(lines [][]byte, start, size int) (rows [][]byte, consumed int) {
+	rows = make([][]byte, 0, size)
+	for i := start; i < len(lines) && len(rows) < size; i++ {
+		line := bytes.TrimSpace(lines[i])
+		if len(line) == 0 {
+			consumed++
+			continue
+		}
+		if line[0] != '-' {
+			break
+		}
+		item := bytes.TrimSpace(line[1:])
+		rows = append(rows, item)
 		consumed++
 	}
 	return rows, consumed

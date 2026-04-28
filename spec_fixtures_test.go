@@ -571,7 +571,7 @@ var trackedSubsetCases = []subsetCase{
 	{
 		fixtureFile: filepath.Join("decode", "arrays-nested.json"),
 		testName:    "parses quoted key with list array format",
-		mode:        "known_gap",
+		mode:        "supported",
 		target:      "struct-xitems-array",
 	},
 }
@@ -1526,6 +1526,14 @@ func assertExpectedXItemsArrayDecode(t *testing.T, raw json.RawMessage, actual i
 	items := rv.FieldByName("XItems")
 	if items.Len() != len(exp["x-items"]) {
 		t.Fatalf("expected %d rows, got %d", len(exp["x-items"]), items.Len())
+	}
+	for i := range exp["x-items"] {
+		var expID int
+		_ = json.Unmarshal(exp["x-items"][i]["id"], &expID)
+		gotID := int(items.Index(i).FieldByName("ID").Int())
+		if gotID != expID {
+			t.Fatalf("x-items[%d] expected id=%d got %d", i, expID, gotID)
+		}
 	}
 }
 

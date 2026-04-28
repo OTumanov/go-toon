@@ -22,7 +22,7 @@ type subsetCase struct {
 	fixtureFile string
 	testName    string
 	mode        string // supported | known_gap
-	target      string // struct | int | bool | string
+	target      string // struct | int | bool | string | float | null-int
 }
 
 var trackedSubsetCases = []subsetCase{
@@ -88,7 +88,73 @@ var trackedSubsetCases = []subsetCase{
 	},
 	{
 		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses false",
+		mode:        "supported",
+		target:      "bool",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses decimal number",
+		mode:        "supported",
+		target:      "float",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses negative integer",
+		mode:        "supported",
+		target:      "int",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses null",
+		mode:        "supported",
+		target:      "null-int",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
 		testName:    "parses quoted string with escaped quotes",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses safe unquoted string",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses quoted string with newline escape",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses quoted string with tab escape",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses quoted string with carriage return escape",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "parses quoted string with backslash escape",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "respects ambiguity quoting for integer",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "primitives.json"),
+		testName:    "respects ambiguity quoting for true",
 		mode:        "supported",
 		target:      "string",
 	},
@@ -189,24 +255,32 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected int primitive to decode, got error: %v", err)
 					}
-					if dst != 42 {
-						t.Fatalf("expected 42, got %d", dst)
-					}
+					assertExpectedInt(t, tc.Expected, dst)
 				case "bool":
 					var dst bool
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected bool primitive to decode, got error: %v", err)
 					}
-					if !dst {
-						t.Fatal("expected true, got false")
-					}
+					assertExpectedBool(t, tc.Expected, dst)
 				case "string":
 					var dst string
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected string primitive to decode, got error: %v", err)
 					}
-					if dst != "say \"hello\"" {
-						t.Fatalf("expected %q, got %q", "say \"hello\"", dst)
+					assertExpectedString(t, tc.Expected, dst)
+				case "float":
+					var dst float64
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected float primitive to decode, got error: %v", err)
+					}
+					assertExpectedFloat(t, tc.Expected, dst)
+				case "null-int":
+					dst := 777
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected null primitive to decode, got error: %v", err)
+					}
+					if dst != 0 {
+						t.Fatalf("expected null to set zero-value, got %d", dst)
 					}
 				default:
 					t.Fatalf("unsupported target mode: %s", c.target)
@@ -261,6 +335,50 @@ func subsetCaseCounters() (supported int, knownGaps int) {
 		}
 	}
 	return supported, knownGaps
+}
+
+func assertExpectedInt(t *testing.T, raw json.RawMessage, actual int) {
+	t.Helper()
+	var expected int
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected int: %v", err)
+	}
+	if actual != expected {
+		t.Fatalf("expected %d, got %d", expected, actual)
+	}
+}
+
+func assertExpectedBool(t *testing.T, raw json.RawMessage, actual bool) {
+	t.Helper()
+	var expected bool
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected bool: %v", err)
+	}
+	if actual != expected {
+		t.Fatalf("expected %v, got %v", expected, actual)
+	}
+}
+
+func assertExpectedString(t *testing.T, raw json.RawMessage, actual string) {
+	t.Helper()
+	var expected string
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected string: %v", err)
+	}
+	if actual != expected {
+		t.Fatalf("expected %q, got %q", expected, actual)
+	}
+}
+
+func assertExpectedFloat(t *testing.T, raw json.RawMessage, actual float64) {
+	t.Helper()
+	var expected float64
+	if err := json.Unmarshal(raw, &expected); err != nil {
+		t.Fatalf("failed to parse expected float: %v", err)
+	}
+	if actual != expected {
+		t.Fatalf("expected %v, got %v", expected, actual)
+	}
 }
 
 func findFixtureTestByName(b fixtureBundle, name string) (struct {

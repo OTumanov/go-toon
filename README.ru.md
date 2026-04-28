@@ -187,13 +187,29 @@ func (u *JSONCompatUser) UnmarshalTOON(data []byte) error {
 
 ## Бенчмарки (reflect vs generated)
 
-Числа из текущего README проекта:
+Команда запуска:
 
-| Операция | Время | Аллокации |
-| --- | --- | --- |
-| JSON Marshal | 276 ns/op | 2 allocs |
-| TOON Reflect | 163 ns/op | 2 allocs |
-| TOON Generated | **42 ns/op** | **0 allocs** |
+```bash
+go test -bench BenchmarkCompare -benchmem -run ^$ ./...
+```
+
+Окружение: `darwin/arm64`, Apple M4, Go из `go.mod`.
+
+| Marshal | Время | Память | Аллокации |
+| --- | --- | --- | --- |
+| `encoding/json` | 78.78 ns/op | 48 B/op | 1 allocs/op |
+| `json-iterator/go` | 107.4 ns/op | 48 B/op | 1 allocs/op |
+| `go-toon` reflect | 118.2 ns/op | 88 B/op | 5 allocs/op |
+| `go-toon` generated | **52.72 ns/op** | 256 B/op | 1 allocs/op |
+
+| Unmarshal | Время | Память | Аллокации |
+| --- | --- | --- | --- |
+| `encoding/json` | 387.5 ns/op | 256 B/op | 6 allocs/op |
+| `json-iterator/go` | 128.2 ns/op | 48 B/op | 5 allocs/op |
+| `go-toon` reflect | 177.5 ns/op | 269 B/op | 6 allocs/op |
+| `go-toon` generated | **41.50 ns/op** | **5 B/op** | **1 allocs/op** |
+
+Код бенчмарков: `benchmark_compare_test.go`.
 
 ## Сравнение с альтернативами
 
@@ -201,10 +217,10 @@ func (u *JSONCompatUser) UnmarshalTOON(data []byte) error {
 
 Если приоритет — максимальная производительность и минимум аллокаций, кодогенерация в `go-toon` может быть предпочтительнее:
 
-- Официальный путь на reflection: около **163 ns/op**, **2 allocs**
-- Сгенерированный путь в `go-toon`: около **42 ns/op**, **0 allocs**
+- Официальный путь на reflection: около **118.2 ns/op**, **5 allocs**
+- Сгенерированный путь в `go-toon`: около **52.72 ns/op**, **1 allocs**
 
-Это примерно **в 4 раза быстрее** и **без выделений памяти** на generated-пути.
+Самый сильный результат в текущем наборе — generated-декодирование (`41.50 ns/op`, `1 allocs/op`).
 
 ## Лицензия
 

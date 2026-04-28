@@ -188,13 +188,29 @@ This direction preserves `go-toon` performance and avoids surprising behavior ch
 
 ## Benchmarks (reflect vs generated)
 
-Numbers from the current project README:
+Run command:
 
-| Operation | Time | Allocations |
-| --- | --- | --- |
-| JSON Marshal | 276 ns/op | 2 allocs |
-| TOON Reflect | 163 ns/op | 2 allocs |
-| TOON Generated | **42 ns/op** | **0 allocs** |
+```bash
+go test -bench BenchmarkCompare -benchmem -run ^$ ./...
+```
+
+Environment: `darwin/arm64`, Apple M4, Go from `go.mod`.
+
+| Marshal | Time | Memory | Allocations |
+| --- | --- | --- | --- |
+| `encoding/json` | 78.78 ns/op | 48 B/op | 1 allocs/op |
+| `json-iterator/go` | 107.4 ns/op | 48 B/op | 1 allocs/op |
+| `go-toon` reflect | 118.2 ns/op | 88 B/op | 5 allocs/op |
+| `go-toon` generated | **52.72 ns/op** | 256 B/op | 1 allocs/op |
+
+| Unmarshal | Time | Memory | Allocations |
+| --- | --- | --- | --- |
+| `encoding/json` | 387.5 ns/op | 256 B/op | 6 allocs/op |
+| `json-iterator/go` | 128.2 ns/op | 48 B/op | 5 allocs/op |
+| `go-toon` reflect | 177.5 ns/op | 269 B/op | 6 allocs/op |
+| `go-toon` generated | **41.50 ns/op** | **5 B/op** | **1 allocs/op** |
+
+Bench code lives in `benchmark_compare_test.go`.
 
 ## Comparison with alternatives
 
@@ -202,10 +218,10 @@ Numbers from the current project README:
 
 If your primary goal is maximum throughput and minimal allocations, generated methods in `go-toon` can be a better fit:
 
-- Official reflect-based path: around **163 ns/op**, **2 allocs**
-- `go-toon` generated path: around **42 ns/op**, **0 allocs**
+- Official reflect-based path: around **118.2 ns/op**, **5 allocs**
+- `go-toon` generated path: around **52.72 ns/op**, **1 allocs**
 
-This is roughly a **4x speedup** with **zero allocations** on the generated path.
+Generated decoding is currently the strongest path (`41.50 ns/op`, `1 allocs/op`) in this benchmark set.
 
 ## License
 

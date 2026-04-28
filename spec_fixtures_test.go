@@ -455,6 +455,60 @@ var trackedSubsetCases = []subsetCase{
 		target:      "struct-tags-array",
 	},
 	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses empty arrays",
+		mode:        "supported",
+		target:      "struct-items-string-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses single-item array with empty string",
+		mode:        "supported",
+		target:      "struct-items-string-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses multi-item array with empty string",
+		mode:        "supported",
+		target:      "struct-items-string-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses whitespace-only strings in arrays",
+		mode:        "supported",
+		target:      "struct-items-string-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses strings with delimiters in arrays",
+		mode:        "supported",
+		target:      "struct-items-string-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses strings that look like primitives when quoted",
+		mode:        "supported",
+		target:      "struct-items-string-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses strings with structural tokens in arrays",
+		mode:        "supported",
+		target:      "struct-items-string-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses quoted key with inline array",
+		mode:        "supported",
+		target:      "struct-mykey-int-array",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "arrays-primitive.json"),
+		testName:    "parses quoted key with empty array",
+		mode:        "supported",
+		target:      "struct-xcustom-string-array",
+	},
+	{
 		fixtureFile: filepath.Join("decode", "arrays-tabular.json"),
 		testName:    "parses tabular arrays of uniform objects",
 		mode:        "supported",
@@ -633,6 +687,33 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					var dst wrap
 					if err := Unmarshal([]byte(in), &dst); err != nil {
 						t.Fatalf("expected tabular object array decode, got error: %v", err)
+					}
+					assertExpectedStructArrayDecode(t, tc.Expected, dst)
+				case "struct-items-string-array":
+					type wrap struct {
+						Items []string `toon:"items"`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected string array decode, got error: %v", err)
+					}
+					assertExpectedStructArrayDecode(t, tc.Expected, dst)
+				case "struct-mykey-int-array":
+					type wrap struct {
+						MyKey []int `toon:"my-key"`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected quoted-key int array decode, got error: %v", err)
+					}
+					assertExpectedStructArrayDecode(t, tc.Expected, dst)
+				case "struct-xcustom-string-array":
+					type wrap struct {
+						XCustom []string `toon:"x-custom"`
+					}
+					var dst wrap
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected quoted-key empty string array decode, got error: %v", err)
 					}
 					assertExpectedStructArrayDecode(t, tc.Expected, dst)
 				default:

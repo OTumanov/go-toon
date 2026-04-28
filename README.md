@@ -1,9 +1,9 @@
 # go-toon
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/OTumanov/go-toon)](https://goreportcard.com/report/github.com/OTumanov/go-toon)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Otumanov/go-toon)](https://goreportcard.com/report/github.com/Otumanov/go-toon)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/OTumanov/go-toon/actions/workflows/ci.yml/badge.svg)](https://github.com/OTumanov/go-toon/actions/workflows/ci.yml)
-[![Spec Fixtures](https://github.com/OTumanov/go-toon/actions/workflows/spec-fixtures.yml/badge.svg)](https://github.com/OTumanov/go-toon/actions/workflows/spec-fixtures.yml)
+[![CI](https://github.com/Otumanov/go-toon/actions/workflows/ci.yml/badge.svg)](https://github.com/Otumanov/go-toon/actions/workflows/ci.yml)
+[![Spec Fixtures](https://github.com/Otumanov/go-toon/actions/workflows/spec-fixtures.yml/badge.svg)](https://github.com/Otumanov/go-toon/actions/workflows/spec-fixtures.yml)
 
 Choose language:
 

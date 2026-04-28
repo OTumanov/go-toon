@@ -1,10 +1,13 @@
 // Package toon implements TOON (Token-Oriented Object Notation) for Go.
 //
-// The package provides Marshal/Unmarshal APIs, stream encoding/decoding,
-// and custom Marshaler/Unmarshaler hooks.
+// The package provides high-performance Marshal/Unmarshal APIs, stream
+// encoding/decoding, and custom Marshaler/Unmarshaler hooks.
 //
 // Runtime encoding/decoding uses reflection. For the fastest path with minimal
 // allocations, use code generation via cmd/toongen.
+//
+// go-toon is designed for compact payloads in LLM pipelines where token count
+// and latency matter.
 //
 // Conformance progress is tracked in SPEC_COMPATIBILITY.md in this repository.
 // The project is distributed under the MIT license.

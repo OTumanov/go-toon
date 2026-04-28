@@ -7,6 +7,14 @@
 
 **TOON (Token-Oriented Object Notation)** is a high-performance TOON implementation for Go. It is designed for LLM-heavy workloads (ChatGPT, Claude, etc.), where payload size directly affects cost.
 
+> 🔥 **Quick Start for Maximum Performance**
+>
+> `go install github.com/OTumanov/go-toon/cmd/toongen@latest`
+>
+> Then run codegen for your models and use generated methods for the fastest path
+> (benchmarks in this repo show generated decode around **41.5 ns/op**, roughly
+> **4x faster** than reflection decode in the same setup).
+
 ## Official TOON links
 
 - TOON ecosystem: [github.com/toon-format](https://github.com/toon-format)
@@ -103,6 +111,13 @@ type User struct {
 toongen -i ./example -o ./example/toon_gen.go
 ```
 
+Alternative package-local usage:
+
+```bash
+go install github.com/OTumanov/go-toon/cmd/toongen@latest
+toongen -i . -o ./_toon.go
+```
+
 3. Use generated methods:
 
 ```go
@@ -118,13 +133,33 @@ _ = decoded.UnmarshalTOON(data)
 ## Streaming API
 
 ```go
+// Write multiple records to stream.
 enc := toon.NewEncoder(writer)
-_ = enc.Encode(users)
+for _, u := range users {
+	_ = enc.Encode(&u)
+}
 
+// Read records from stream until EOF.
 dec := toon.NewDecoder(reader)
-var out []User
-_ = dec.Decode(&out)
+for {
+	var out User
+	if err := dec.Decode(&out); err != nil {
+		break
+	}
+	// use out
+}
 ```
+
+## Note on TOON text form
+
+Examples use the compact canonical form `header:row` (single line), for example:
+
+```text
+user{id,name}:42,Alice
+```
+
+This is equivalent to the same header/body model from the TOON spec and is used
+in tests and generated code paths for performance and readability.
 
 ## Custom field encoding
 

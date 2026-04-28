@@ -7,6 +7,15 @@
 
 **TOON (Token-Oriented Object Notation)** — высокопроизводительная реализация формата TOON для Go. Библиотека ориентирована на сценарии с LLM (ChatGPT, Claude и т.д.), где объем контекста напрямую влияет на стоимость.
 
+> 🔥 **Быстрый старт для максимальной производительности**
+>
+> `go install github.com/OTumanov/go-toon/cmd/toongen@latest`
+>
+> Затем запускайте кодогенерацию для ваших моделей и используйте сгенерированные
+> методы для самого быстрого пути (в бенчмарках репозитория generated decode
+> около **41.5 ns/op**, то есть примерно **в 4 раза быстрее** reflection decode
+> на том же стенде).
+
 ## Официальные ссылки TOON
 
 - Экосистема TOON: [github.com/toon-format](https://github.com/toon-format)
@@ -102,6 +111,13 @@ type User struct {
 toongen -i ./example -o ./example/toon_gen.go
 ```
 
+Альтернатива для текущего пакета:
+
+```bash
+go install github.com/OTumanov/go-toon/cmd/toongen@latest
+toongen -i . -o ./_toon.go
+```
+
 3. Используйте сгенерированные методы:
 
 ```go
@@ -117,13 +133,34 @@ _ = decoded.UnmarshalTOON(data)
 ## Потоковый API
 
 ```go
+// Запись нескольких записей в поток.
 enc := toon.NewEncoder(writer)
-_ = enc.Encode(users)
+for _, u := range users {
+	_ = enc.Encode(&u)
+}
 
+// Чтение из потока до EOF.
 dec := toon.NewDecoder(reader)
-var out []User
-_ = dec.Decode(&out)
+for {
+	var out User
+	if err := dec.Decode(&out); err != nil {
+		break
+	}
+	// используем out
+}
 ```
+
+## Примечание про текстовый вид TOON
+
+В примерах используется компактная каноничная форма `header:row` (одна строка),
+например:
+
+```text
+user{id,name}:42,Alice
+```
+
+Это эквивалентно header/body-модели из спецификации TOON и активно используется
+в тестах и generated-пути ради производительности и читаемости.
 
 ## Кастомное кодирование полей
 

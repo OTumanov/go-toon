@@ -14,6 +14,10 @@ vendor/
 # Generated binaries
 toongen
 
+# Generated TOON code
+*_toon.go
+*toon_gen.go
+
 # IDE
 .idea/
 .vscode/

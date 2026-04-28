@@ -1,4 +1,4 @@
-package toon
+package toon // import "github.com/OTumanov/go-toon"
 
 import "errors"
 

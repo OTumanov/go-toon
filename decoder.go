@@ -13,6 +13,14 @@ func Unmarshal(data []byte, v interface{}) error {
 		return ErrInvalidTarget
 	}
 
+	// Root primitive fallback for spec-compatible decode cases like:
+	// "42", "true", "\"hello\"".
+	if supportsPrimitiveRoot(rv.Elem().Kind()) {
+		if err := unmarshalRootPrimitive(data, rv.Elem()); err == nil {
+			return nil
+		}
+	}
+
 	d := newDecoder(data)
 	h, err := d.parseHeader()
 	if err != nil {
@@ -28,6 +36,35 @@ func Unmarshal(data []byte, v interface{}) error {
 	}
 
 	return d.decodeValue(h, rv.Elem())
+}
+
+func supportsPrimitiveRoot(k reflect.Kind) bool {
+	switch k {
+	case reflect.String,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64,
+		reflect.Bool:
+		return true
+	default:
+		return false
+	}
+}
+
+func unmarshalRootPrimitive(data []byte, v reflect.Value) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
+		return ErrMalformedTOON
+	}
+	if bytes.Equal(trimmed, []byte("null")) {
+		v.Set(reflect.Zero(v.Type()))
+		return nil
+	}
+	parsed, err := unquoteIfNeeded(trimmed)
+	if err != nil {
+		return ErrMalformedTOON
+	}
+	return setFieldBytes(v, parsed)
 }
 
 func unmarshalObjectLines(data []byte, v reflect.Value) error {

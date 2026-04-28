@@ -22,6 +22,7 @@ type subsetCase struct {
 	fixtureFile string
 	testName    string
 	mode        string // supported | known_gap
+	target      string // struct | int | bool | string
 }
 
 var trackedSubsetCases = []subsetCase{
@@ -29,56 +30,67 @@ var trackedSubsetCases = []subsetCase{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses empty nested object header",
 		mode:        "supported",
+		target:      "struct",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses objects with primitive values",
 		mode:        "supported",
+		target:      "struct",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses null values in objects",
 		mode:        "supported",
+		target:      "struct",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses quoted object value with colon",
 		mode:        "supported",
+		target:      "struct",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses quoted object value with escaped quotes",
 		mode:        "supported",
+		target:      "struct",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses quoted key with colon",
 		mode:        "supported",
+		target:      "struct",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses dotted keys as identifiers",
 		mode:        "known_gap",
+		target:      "struct",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "objects.json"),
 		testName:    "parses deeply nested objects with indentation",
 		mode:        "known_gap",
+		target:      "struct",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "primitives.json"),
 		testName:    "parses positive integer",
-		mode:        "known_gap",
+		mode:        "supported",
+		target:      "int",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "primitives.json"),
 		testName:    "parses true",
-		mode:        "known_gap",
+		mode:        "supported",
+		target:      "bool",
 	},
 	{
 		fixtureFile: filepath.Join("decode", "primitives.json"),
 		testName:    "parses quoted string with escaped quotes",
-		mode:        "known_gap",
+		mode:        "supported",
+		target:      "string",
 	},
 }
 
@@ -152,17 +164,46 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 
 			switch c.mode {
 			case "supported":
-				var dst struct {
-					ID     int
-					Name   string
-					Active bool
-					Value  string
-					Note   string
-					OrderID int `toon:"order:id"`
-					Text    string
-				}
-				if err := Unmarshal([]byte(in), &dst); err != nil {
-					t.Fatalf("expected supported subset case to decode, got error: %v", err)
+				switch c.target {
+				case "struct":
+					var dst struct {
+						ID      int
+						Name    string
+						Active  bool
+						Value   string
+						Note    string
+						OrderID int `toon:"order:id"`
+						Text    string
+					}
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected supported subset case to decode, got error: %v", err)
+					}
+				case "int":
+					var dst int
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected int primitive to decode, got error: %v", err)
+					}
+					if dst != 42 {
+						t.Fatalf("expected 42, got %d", dst)
+					}
+				case "bool":
+					var dst bool
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected bool primitive to decode, got error: %v", err)
+					}
+					if !dst {
+						t.Fatal("expected true, got false")
+					}
+				case "string":
+					var dst string
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected string primitive to decode, got error: %v", err)
+					}
+					if dst != "say \"hello\"" {
+						t.Fatalf("expected %q, got %q", "say \"hello\"", dst)
+					}
+				default:
+					t.Fatalf("unsupported target mode: %s", c.target)
 				}
 			case "known_gap":
 				// Keep known gaps explicit and test-visible. A future change that

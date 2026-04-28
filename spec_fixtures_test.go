@@ -375,6 +375,60 @@ var trackedSubsetCases = []subsetCase{
 		mode:        "supported",
 		target:      "struct-encode-lines",
 	},
+	{
+		fixtureFile: filepath.Join("decode", "numbers.json"),
+		testName:    "parses number with trailing zeros in fractional part",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "numbers.json"),
+		testName:    "parses negative zero as zero",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "numbers.json"),
+		testName:    "parses negative zero with fractional part",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "numbers.json"),
+		testName:    "treats leading zero as string not number",
+		mode:        "supported",
+		target:      "struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "numbers.json"),
+		testName:    "treats unquoted leading-zero number as string",
+		mode:        "supported",
+		target:      "string",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "root-form.json"),
+		testName:    "parses empty document as empty object",
+		mode:        "supported",
+		target:      "empty-struct",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "numbers.json"),
+		testName:    "parses exponent notation",
+		mode:        "known_gap",
+		target:      "float",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "numbers.json"),
+		testName:    "parses exponent notation with uppercase E",
+		mode:        "known_gap",
+		target:      "float",
+	},
+	{
+		fixtureFile: filepath.Join("decode", "numbers.json"),
+		testName:    "parses negative exponent notation",
+		mode:        "known_gap",
+		target:      "float",
+	},
 }
 
 // TestSpecFixturesAvailability ensures CI can consume official TOON fixtures.
@@ -513,6 +567,11 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 					if dst != 0 {
 						t.Fatalf("expected null to set zero-value, got %d", dst)
 					}
+				case "empty-struct":
+					var dst struct{}
+					if err := Unmarshal([]byte(in), &dst); err != nil {
+						t.Fatalf("expected empty document to decode into empty object, got error: %v", err)
+					}
 				default:
 					t.Fatalf("unsupported target mode: %s", c.target)
 				}
@@ -527,14 +586,26 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 				if err := json.Unmarshal(tc.Input, &in); err != nil {
 					t.Fatalf("decode fixture input unmarshal failed: %v", err)
 				}
-				var dst struct { // representative object target for gap tracking
-					ID     int
-					Name   string
-					Active bool
-				}
-				err := Unmarshal([]byte(in), &dst)
-				if err == nil && (dst.ID != 0 || dst.Name != "" || dst.Active) {
-					t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+				switch c.target {
+				case "float":
+					var dst float64
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil {
+						var expected float64
+						if uerr := json.Unmarshal(tc.Expected, &expected); uerr == nil && dst == expected {
+							t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+						}
+					}
+				default:
+					var dst struct { // representative object target for gap tracking
+						ID     int
+						Name   string
+						Active bool
+					}
+					err := Unmarshal([]byte(in), &dst)
+					if err == nil && (dst.ID != 0 || dst.Name != "" || dst.Active) {
+						t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+					}
 				}
 			default:
 				t.Fatalf("unknown subset case mode: %s", c.mode)

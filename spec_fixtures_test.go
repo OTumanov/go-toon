@@ -73,31 +73,65 @@ func readFixtureBundle(t *testing.T, rel string) fixtureBundle {
 // official fixture inputs. This is intentionally a small, explicit subset that
 // can be expanded as feature parity grows.
 func TestSpecFixturesSupportedSubset(t *testing.T) {
-	b := readFixtureBundle(t, filepath.Join("decode", "objects.json"))
-
-	var found bool
-	for _, tc := range b.Tests {
-		if tc.Name != "parses empty nested object header" {
-			continue
-		}
-		found = true
-
-		var in string
-		if err := json.Unmarshal(tc.Input, &in); err != nil {
-			t.Fatalf("decode fixture input unmarshal failed: %v", err)
-		}
-
-		// "user:" is an officially documented object-header form.
-		// In go-toon current parser, the equivalent supported behavior is
-		// successful header parsing and struct decode with zero fields.
-		var dst struct{}
-		if err := Unmarshal([]byte(in), &dst); err != nil {
-			t.Fatalf("expected supported subset case to decode, got error: %v", err)
-		}
+	type subsetCase struct {
+		fixtureFile string
+		testName    string
+		mode        string // supported | known_gap
 	}
 
-	if !found {
-		t.Fatal("supported subset case not found in official fixtures")
+	cases := []subsetCase{
+		{
+			fixtureFile: filepath.Join("decode", "objects.json"),
+			testName:    "parses empty nested object header",
+			mode:        "supported",
+		},
+		{
+			fixtureFile: filepath.Join("decode", "objects.json"),
+			testName:    "parses objects with primitive values",
+			mode:        "known_gap",
+		},
+		{
+			fixtureFile: filepath.Join("decode", "primitives.json"),
+			testName:    "parses positive integer",
+			mode:        "known_gap",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.testName, func(t *testing.T) {
+			b := readFixtureBundle(t, c.fixtureFile)
+			tc, ok := findFixtureTestByName(b, c.testName)
+			if !ok {
+				t.Fatalf("fixture test not found: %s (%s)", c.testName, c.fixtureFile)
+			}
+
+			var in string
+			if err := json.Unmarshal(tc.Input, &in); err != nil {
+				t.Fatalf("decode fixture input unmarshal failed: %v", err)
+			}
+
+			switch c.mode {
+			case "supported":
+				var dst struct{}
+				if err := Unmarshal([]byte(in), &dst); err != nil {
+					t.Fatalf("expected supported subset case to decode, got error: %v", err)
+				}
+			case "known_gap":
+				// Keep known gaps explicit and test-visible. A future change that
+				// starts passing these should trigger moving the case to supported.
+				var dst struct {
+					ID     int
+					Name   string
+					Active bool
+				}
+				err := Unmarshal([]byte(in), &dst)
+				if err == nil && (dst.ID != 0 || dst.Name != "" || dst.Active) {
+					t.Fatalf("known-gap case unexpectedly behaves as supported; move it to supported list")
+				}
+			default:
+				t.Fatalf("unknown subset case mode: %s", c.mode)
+			}
+		})
 	}
 }
 
@@ -112,11 +146,28 @@ func TestSpecFixturesSubsetSummary(t *testing.T) {
 
 	// Keep this as a CI-visible checkpoint to track gradual expansion.
 	t.Logf(
-		"official fixture coverage checkpoint: encode(objects)=%d decode(objects)=%d supported_subset=%d",
-		len(encode.Tests), len(decode.Tests), 1,
+		"official fixture coverage checkpoint: encode(objects)=%d decode(objects)=%d supported_subset=%d known_gaps=%d",
+		len(encode.Tests), len(decode.Tests), 1, 2,
 	)
 
 	if len(encode.Tests) == 0 || len(decode.Tests) == 0 {
 		t.Fatal(fmt.Errorf("unexpected empty official fixture bundle"))
 	}
+}
+
+func findFixtureTestByName(b fixtureBundle, name string) (struct {
+	Name     string          `json:"name"`
+	Input    json.RawMessage `json:"input"`
+	Expected json.RawMessage `json:"expected"`
+}, bool) {
+	for _, tc := range b.Tests {
+		if tc.Name == name {
+			return tc, true
+		}
+	}
+	return struct {
+		Name     string          `json:"name"`
+		Input    json.RawMessage `json:"input"`
+		Expected json.RawMessage `json:"expected"`
+	}{}, false
 }

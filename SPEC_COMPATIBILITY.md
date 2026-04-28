@@ -20,6 +20,7 @@ The objective is to evolve coverage transparently without claiming full conforma
 - Fixture source: `toon-format/spec/tests` (live checkout in CI workflow)
 - Automated fixture ingestion: enabled
 - Behavioral subset checks: enabled (initial decode subset)
+- Known-gap assertions: enabled (explicit unsupported cases are tracked in tests)
 
 ## Expansion plan
 
@@ -33,6 +34,8 @@ The objective is to evolve coverage transparently without claiming full conforma
    - map official `shouldError` fixture groups to current parser constraints.
 4. Coverage reporting:
    - keep a stable “supported subset” list in test code and expose periodic summary in CI logs.
+5. Gap migration:
+   - when a known-gap case starts passing, move it from `known_gap` to `supported`.
 
 ## Notes
 

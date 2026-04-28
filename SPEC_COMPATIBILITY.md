@@ -21,9 +21,9 @@ The objective is to evolve coverage transparently without claiming full conforma
 - Automated fixture ingestion: enabled
 - Behavioral subset checks: enabled (initial decode subset)
 - Known-gap assertions: enabled (explicit unsupported cases are tracked in tests)
-- Tracked subset cases (iteration #5): 38 total
+- Tracked subset cases (iteration #6): 46 total
   - supported: 38
-  - known gaps: 0
+  - known gaps: 8
 
 ## Expansion plan
 

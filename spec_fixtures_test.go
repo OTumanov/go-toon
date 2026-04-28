@@ -255,6 +255,54 @@ var trackedSubsetCases = []subsetCase{
 		mode:        "supported",
 		target:      "string",
 	},
+	{
+		fixtureFile: filepath.Join("encode", "objects.json"),
+		testName:    "preserves key order in objects",
+		mode:        "known_gap",
+		target:      "struct-encode",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "objects.json"),
+		testName:    "encodes null values in objects",
+		mode:        "known_gap",
+		target:      "struct-encode",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "objects.json"),
+		testName:    "quotes string value with colon",
+		mode:        "known_gap",
+		target:      "struct-encode",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "objects.json"),
+		testName:    "quotes string value with comma",
+		mode:        "known_gap",
+		target:      "struct-encode",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "objects.json"),
+		testName:    "quotes string value with embedded quotes",
+		mode:        "known_gap",
+		target:      "struct-encode",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "objects.json"),
+		testName:    "quotes key with colon",
+		mode:        "known_gap",
+		target:      "struct-encode",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "objects.json"),
+		testName:    "quotes key with spaces",
+		mode:        "known_gap",
+		target:      "struct-encode",
+	},
+	{
+		fixtureFile: filepath.Join("encode", "objects.json"),
+		testName:    "encodes deeply nested objects",
+		mode:        "known_gap",
+		target:      "struct-encode",
+	},
 }
 
 // TestSpecFixturesAvailability ensures CI can consume official TOON fixtures.
@@ -397,7 +445,8 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 				}
 			case "known_gap":
 				if isEncodeCase {
-					t.Fatalf("known_gap encode case is not expected in current tracked set: %s", c.testName)
+					runKnownGapEncodeCase(t, c.target, tc)
+					return
 				}
 				// Keep known gaps explicit and test-visible. A future change that
 				// starts passing these should trigger moving the case to supported.
@@ -418,6 +467,51 @@ func TestSpecFixturesSupportedSubset(t *testing.T) {
 				t.Fatalf("unknown subset case mode: %s", c.mode)
 			}
 		})
+	}
+}
+
+func runKnownGapEncodeCase(t *testing.T, target string, tc struct {
+	Name     string          `json:"name"`
+	Input    json.RawMessage `json:"input"`
+	Expected json.RawMessage `json:"expected"`
+}) {
+	t.Helper()
+	expected := decodeExpectedEncodedText(t, tc.Expected)
+
+	switch target {
+	case "struct-encode":
+		type nested struct {
+			C string `toon:"c"`
+		}
+		type middle struct {
+			B nested `toon:"b"`
+		}
+		type objFixture struct {
+			ID     int     `toon:"id"`
+			Name   string  `toon:"name"`
+			Active bool    `toon:"active"`
+			Value  string  `toon:"value"`
+			Note   string  `toon:"note"`
+			Text   string  `toon:"text"`
+			V      string  `toon:"v"`
+			Order  int     `toon:"order:id"`
+			Full   string  `toon:"full name"`
+			A      middle  `toon:"a"`
+		}
+
+		var in objFixture
+		if err := json.Unmarshal(tc.Input, &in); err != nil {
+			t.Fatalf("encode fixture object input unmarshal failed: %v", err)
+		}
+		out, err := Marshal(&in)
+		if err != nil {
+			t.Fatalf("known-gap encode case should still encode, got error: %v", err)
+		}
+		if string(out) == expected {
+			t.Fatalf("known-gap case unexpectedly matches spec output; move it to supported list")
+		}
+	default:
+		t.Fatalf("unsupported known-gap encode target mode: %s", target)
 	}
 }
 
